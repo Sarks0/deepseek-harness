@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Agents can discover and load skills during a session. Before the first request, when model-invocable skills exist and the `skill` tool is visible, they receive a durable catalog of available skill names, capped descriptions, and capped `use when:` routing hints, and can use the `skill` tool to load full instructions. Users can invoke a user-invocable skill with `/name`, which injects the same instructions into that step. Catalog changes append a complete replacement, including an empty catalog that retires old names; configure `catalogDescriptionMaxLength` and `catalogWhenToUseMaxLength` to limit each rendered line.
+Agents can discover and load skills during a session. Before the first request, when model-invocable skills exist and the `skill` tool is visible, they receive a durable catalog of available skill names, capped descriptions, and capped `use when:` routing hints, and can use the `skill` tool to load full instructions. Users can invoke a user-invocable skill with `/name`, which injects the same instructions into that step, and a natural-language claim that matches a skill's trigger text receives a short reminder naming the match. Catalog changes append a complete replacement, including an empty catalog that retires old names; configure `catalogDescriptionMaxLength`, `catalogWhenToUseMaxLength`, `triggerInjection`, and `triggerInjectionMax` to shape the rendered lines and reminders.
 
 ## Table of Contents
 
@@ -47,6 +47,8 @@ Load the plugin together with the skill registry and at least one provider. The 
 |---|---|---|
 | `catalogDescriptionMaxLength` | `1000` | Maximum normalized description length rendered in the session catalog; minimum 3 |
 | `catalogWhenToUseMaxLength` | `500` | Maximum normalized when-to-use length rendered in the session catalog; minimum 3 |
+| `triggerInjection` | `true` | Match natural-language claims against skill trigger texts and name the matches in a reminder |
+| `triggerInjectionMax` | `3` | How many matched skills one trigger reminder may name; minimum 1 |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-skill) is the exhaustive source for every accepted field.
 
@@ -55,7 +57,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 - **A session catalog.** When model-invocable skills exist and the `skill` tool is visible, the agent receives a durable user-role message before its first request, listing each skill's name, a capped description, and — when the skill declares one — its capped `use when:` routing hint; the message tells the model to load a skill with the tool before acting on it, and never to infer instructions from the summary alone.
 - **A loader tool.** The model calls `skill` with the exact skill name and receives the full instruction body plus resource guidance in a canonical `<skill_content>` block; the result is retained as ordinary tool history.
 - **Explicit user invocation.** A `/name` token in direct user input that names a user-invocable skill injects that skill's instructions into the step, without the model having to load it.
-- **Live catalog updates.** Later membership, description, or visibility changes append a complete replacement catalog; removing every skill appends an empty catalog that retires older names.
+- **Deterministic trigger reminders.** A natural-language claim that matches a skill's trigger text appends a short reminder naming the matched skills (at most `triggerInjectionMax`, in catalog order) and instructing the model to load them with the `skill` tool before improvising; bodies are never injected by the match itself. A skill matches when the claim contains, case-insensitively, one of its quoted trigger phrases (a quoted run of three or more characters in the description or `whenToUse` — quoting is an explicit trigger declaration), or one of its word tokens of at least four characters that is neither conversation filler (a fixed stopword table) nor shared by more than two candidate skills' trigger texts, so a word common across the catalog is noise and a rare word is a trigger. Skills already injected by a `/name` gesture in the same step are not named again, and an identical reminder (same matched names and prompt text) already visible in the session is never repeated; a new prompt produces a fresh reminder.
 
 ### Observable success and failures
 

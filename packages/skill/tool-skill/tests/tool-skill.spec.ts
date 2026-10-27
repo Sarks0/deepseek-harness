@@ -1279,3 +1279,217 @@ describe('user-explicit invocation injection', () => {
     })
   })
 })
+
+describe('deterministic trigger injection', () => {
+  function triggerMessages(events: readonly SessionEvent[]): string[] {
+    return events
+      .filter((event): event is Extract<SessionEvent, { type: 'user/message' }> =>
+        event.type === 'user/message' && event.data.source.kind === 'skill-trigger')
+      .map(event => JSON.stringify(event.data.content))
+  }
+
+  it('names a skill whose quoted trigger phrase appears in the prompt', async () => {
+    const home = await tempDir('trigger-phrase')
+    const ctx = await setup(home)
+    ctx.skills.register({
+      name: 'rdp-helper',
+      description: 'Remote desktop helper. Trigger phrases: "get an interactive session", "0x41303".',
+      source: 'runtime',
+      content: 'RDP body.',
+    })
+
+    const decision = await proposeStep(ctx, agentForCwd(home), [
+      createUserMessage({
+        content: [{ type: 'text', text: 'Please get an interactive session to the vr-lab box' }],
+        source: { kind: 'user' },
+      }),
+    ])
+
+    if (decision.kind !== 'enter') throw new Error('expected enter')
+    const reminder = decision.messages.find(message => (message.source as { kind?: string }).kind === 'skill-trigger')
+    expect(reminder?.source).toMatchObject({ kind: 'skill-trigger', form: 'reminder', names: ['rdp-helper'] })
+    const rendered = JSON.stringify(decision.messages)
+    expect(rendered).toContain('Call the `skill` tool with the exact name for each match before improvising')
+    // The reminder names the skill; it never carries the body.
+    expect(rendered).not.toContain('RDP body')
+  })
+
+  it('does not match single common words', async () => {
+    const home = await tempDir('trigger-common')
+    const ctx = await setup(home)
+    // A stopword: conversation filler, never a single-word trigger.
+    ctx.skills.register({
+      name: 'filler-skill',
+      description: 'Useful when you need help with packaging.',
+      source: 'runtime',
+      content: 'Filler body.',
+    })
+    // A word shared by three skills: catalog noise, not a trigger.
+    for (const name of ['deploy-a', 'deploy-b', 'deploy-c']) {
+      ctx.skills.register({
+        name,
+        description: 'Deployment helper for the deploy pipeline.',
+        source: 'runtime',
+        content: `${name} body.`,
+      })
+    }
+
+    const decision = await proposeStep(ctx, agentForCwd(home), [
+      createUserMessage({
+        content: [{ type: 'text', text: 'help me deploy the site' }],
+        source: { kind: 'user' },
+      }),
+    ])
+
+    if (decision.kind !== 'enter') throw new Error('expected enter')
+    expect(decision.messages.some(message => (message.source as { kind?: string }).kind === 'skill-trigger'))
+      .toBe(false)
+  })
+
+  it('caps the number of named skills at triggerInjectionMax', async () => {
+    const home = await tempDir('trigger-cap')
+    const ctx = await setup(home, { triggerInjectionMax: 2 })
+    for (const name of ['vr-alpha', 'vr-beta', 'vr-gamma', 'vr-delta']) {
+      ctx.skills.register({
+        name,
+        description: `Quoted "launch-${name}" trigger.`,
+        source: 'runtime',
+        content: `${name} body.`,
+      })
+    }
+
+    const decision = await proposeStep(ctx, agentForCwd(home), [
+      createUserMessage({
+        content: [{ type: 'text', text: 'launch-vr-alpha and launch-vr-beta and launch-vr-gamma and launch-vr-delta' }],
+        source: { kind: 'user' },
+      }),
+    ])
+
+    if (decision.kind !== 'enter') throw new Error('expected enter')
+    const reminder = decision.messages.find(message => (message.source as { kind?: string }).kind === 'skill-trigger')
+    // Catalog order (name-sorted), capped at two.
+    expect(reminder?.source).toMatchObject({ names: ['vr-alpha', 'vr-beta'] })
+  })
+
+  it('never names a skill removed by the includeSkills filter', async () => {
+    const home = await tempDir('trigger-filtered')
+    const project = await tempDir('trigger-filtered-project')
+    await mkdir(join(project, '.git'), { recursive: true })
+    await writeSkill(join(project, '.dsh/skills'), 'kept-skill', 'Quoted "kept-phrase" helper for boxes', 'Kept body.')
+    await writeSkill(join(project, '.dsh/skills'), 'filtered-skill', 'Quoted "filtered-signal" trigger for remote hosts', 'Filtered body.')
+    const ctx = await setup(home, {}, { includeSkills: ['kept-*'] })
+
+    const decision = await proposeStep(ctx, agentForCwd(project), [
+      createUserMessage({
+        content: [{ type: 'text', text: 'please run the filtered-signal now' }],
+        source: { kind: 'user' },
+      }),
+    ])
+
+    if (decision.kind !== 'enter') throw new Error('expected enter')
+    expect(decision.messages.some(message => (message.source as { kind?: string }).kind === 'skill-trigger'))
+      .toBe(false)
+  })
+
+  it('injects once per identical prompt text and again for new text', async () => {
+    const home = await tempDir('trigger-digest')
+    const ctx = await setup(home)
+    ctx.skills.register({
+      name: 'digest-skill',
+      description: 'Quoted "digest-phrase" trigger.',
+      source: 'runtime',
+      content: 'Digest body.',
+    })
+    const session = Session.create(SessionId('trigger-digest'))
+    const agent = sessionAgent(session)
+    openMessageTurn(session)
+
+    const claim = async (text: string): Promise<void> => {
+      const decision = await proposeStep(ctx, agent, [
+        createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }),
+      ])
+      if (decision.kind !== 'enter') throw new Error('expected enter')
+      for (const message of decision.messages) {
+        session.append('user/message', message, { surfaceOp: 'append' })
+      }
+    }
+
+    await claim('use the digest-phrase please')
+    // A retry claims the same text: the visible reminder is not repeated.
+    await claim('use the digest-phrase please')
+    expect(triggerMessages(session.snapshotEvents())).toHaveLength(1)
+
+    await claim('again the digest-phrase for another box')
+    const reminders = triggerMessages(session.snapshotEvents())
+    expect(reminders).toHaveLength(2)
+    expect(reminders[1]).toContain('digest-skill')
+  })
+
+  it('leaves gestures unnamed and keeps their bodies last', async () => {
+    const home = await tempDir('trigger-gesture')
+    const ctx = await setup(home)
+    ctx.skills.register({
+      name: 'gestured-skill',
+      description: 'Quoted "alpha-beta" trigger.',
+      source: 'runtime',
+      content: 'Gestured body.',
+    })
+    ctx.skills.register({
+      name: 'phrase-skill',
+      description: 'Quoted "gamma-delta" trigger.',
+      source: 'runtime',
+      content: 'Phrase body.',
+    })
+
+    const decision = await proposeStep(ctx, agentForCwd(home), [
+      createUserMessage({
+        content: [{ type: 'text', text: '/gestured-skill run "gamma-delta" now' }],
+        source: { kind: 'user' },
+      }),
+    ])
+
+    if (decision.kind !== 'enter') throw new Error('expected enter')
+    const reminder = decision.messages.find(message => (message.source as { kind?: string }).kind === 'skill-trigger')
+    expect(reminder?.source).toMatchObject({ names: ['phrase-skill'] })
+    const kinds = decision.messages.map(message => (message.source as { kind: string }).kind)
+    expect(kinds.indexOf('skill-trigger')).toBeLessThan(kinds.lastIndexOf('skill-invocation'))
+    expect(JSON.stringify(decision.messages)).toContain('Gestured body.')
+  })
+
+  it('registers no listener at all when disabled', async () => {
+    const home = await tempDir('trigger-disabled')
+    const ctx = await setup(home, { triggerInjection: false })
+    ctx.skills.register({
+      name: 'disabled-skill',
+      description: 'Quoted "disabled-phrase" trigger.',
+      source: 'runtime',
+      content: 'Disabled body.',
+    })
+
+    const decision = await proposeStep(ctx, agentForCwd(home), [
+      createUserMessage({
+        content: [{ type: 'text', text: 'please use the disabled-phrase' }],
+        source: { kind: 'user' },
+      }),
+    ])
+
+    if (decision.kind !== 'enter') throw new Error('expected enter')
+    const rendered = JSON.stringify(decision.messages)
+    expect(rendered).not.toContain('skill-trigger')
+    expect(rendered).not.toContain('matches one or more available skills')
+  })
+
+  it('validates the trigger cap', async () => {
+    const home = await tempDir('trigger-invalid')
+    const ctx = new Context()
+    provideWorkingDirectoryFixture(ctx, home)
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(SessionProjectionRegistry)
+    await ctx.plugin(NativeToolExecutor)
+    await ctx.plugin(AgentRegistry)
+    await ctx.plugin(SkillRegistry)
+
+    await expect(ctx.plugin(toolSkill, { triggerInjectionMax: 0 })).rejects.toThrow('greater than or equal to 1')
+  })
+})

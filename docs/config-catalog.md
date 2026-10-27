@@ -4148,7 +4148,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-tool-skill`
 
 - `inject`: `agents` · `tools` · `skills` · `workingDirectory`
-- `source`: [`packages/skill/tool-skill/src/index.ts:71`](../packages/skill/tool-skill/src/index.ts)
+- `source`: [`packages/skill/tool-skill/src/index.ts:106`](../packages/skill/tool-skill/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing skill catalog configuration. */
@@ -4157,6 +4157,10 @@ export interface Config {
   catalogDescriptionMaxLength?: number
   /** Maximum normalized when-to-use length rendered in the session catalog; minimum 3. */
   catalogWhenToUseMaxLength?: number
+  /** Match natural-language claims against skill trigger texts and name the matches in a reminder. */
+  triggerInjection?: boolean
+  /** How many matched skills one trigger reminder may name; minimum 1. */
+  triggerInjectionMax?: number
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-skill -->
