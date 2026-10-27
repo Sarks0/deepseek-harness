@@ -603,6 +603,20 @@ describe('background execution through the job runtime', () => {
     expect(final.isError).toBe(false)
   })
 
+  it('job_input reaches the live stdin of a background job and the command reads it', async () => {
+    const ctx = await setupWithJobs()
+    const started = await call(ctx, 'bash', { command: 'read line; echo got:$line', description: 'test command', run_in_background: true })
+    expect(started.isError).toBe(false)
+    const id = currentId(ctx)
+
+    const written = await call(ctx, 'job_input', { job_id: id, text: 'hello\n' })
+    expect(written.isError).toBe(false)
+    expect(text(written)).toBe(`wrote 6 bytes to stdin of job ${id}\n[status: running]`)
+
+    const final = await callUntilText(ctx, 'job_output', { job_id: id }, 'got:hello')
+    expect(text(final)).toContain('got:hello')
+  })
+
   it('a running background job is killable through the REAL job_kill tool', async () => {
     const ctx = await setupWithJobs()
     await call(ctx, 'bash', { command: 'sleep 60', description: 'test command', run_in_background: true })

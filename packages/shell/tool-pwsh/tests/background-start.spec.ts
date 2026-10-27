@@ -121,3 +121,38 @@ describe('background job ownership during asynchronous shell startup', () => {
     expect(await hooks.done).toEqual({ status: 'failed', detail: 'upstream preparation stopped' })
   })
 })
+
+describe('background job stdin through the processJob hooks', () => {
+  it('delegates input to the published process and reports written bytes', async () => {
+    const child = processHandle()
+    const writes: { text: string; close: boolean }[] = []
+    child.process.writeInput = (text, options) => {
+      writes.push({ text, close: options?.close === true })
+      return Buffer.byteLength(text, 'utf8')
+    }
+    const prepared = Promise.withResolvers<ShellProcess>()
+    const hooks = processJob(() => prepared.promise, processOutcome)
+
+    // Before the process exists there is nothing to write to yet.
+    expect(() => hooks.input?.('early\n')).toThrow('still preparing')
+
+    prepared.resolve(child.process)
+    await Promise.resolve()
+    expect(hooks.input?.('yes\n')).toBe(4)
+    expect(hooks.input?.('', { close: true })).toBe(0)
+    expect(writes).toEqual([
+      { text: 'yes\n', close: false },
+      { text: '', close: true },
+    ])
+  })
+
+  it('reports a process that started without a stdin pipe', async () => {
+    const child = processHandle()
+    const prepared = Promise.withResolvers<ShellProcess>()
+    const hooks = processJob(() => prepared.promise, processOutcome)
+    prepared.resolve(child.process)
+    await Promise.resolve()
+
+    expect(() => hooks.input?.('x')).toThrow('the job has no stdin to write to')
+  })
+})

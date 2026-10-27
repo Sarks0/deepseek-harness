@@ -300,6 +300,12 @@ export function apply(ctx: Context, config: Config = {}): void {
           )
           return {
             done: hooks.done,
+            // An explicit background run resolves the shell spec with
+            // liveStdin, so the process exposes writeInput; forwarding the
+            // hook is what lets job_input reach it. Foreground-promoted jobs
+            // spawn without a stdin pipe, and the same hook reports the
+            // missing stdin to job_input.
+            input: hooks.input,
             // A kill from outside this call (the human's, a parallel job_kill)
             // reaches the process here; its reason is what the model reads.
             cancel: (reason) => {

@@ -95,11 +95,13 @@ export function ringDelta(chunks: readonly JobChunk[]): string {
  * @param start - starts the process with job-owned cancellation.
  * @param outcome - projects the settled process into the job outcome.
  * @returns synchronous job hooks whose completion includes preparation and process settlement.
+ *   The {@link JobHooks.input} member is always present — producers that do not start a stdin
+ *   pipe get a hook that reports the missing stdin — so callers can forward it unconditionally.
  */
 export function processJob(
   start: (signal: AbortSignal) => Promise<ShellProcess>,
   outcome: (process: ShellProcess) => JobOutcome,
-): JobHooks {
+): JobHooks & { input: NonNullable<JobHooks['input']> } {
   const controller = new AbortController()
   let process: ShellProcess | undefined
   const done: Promise<JobOutcome> = (async () => {
