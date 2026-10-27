@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "MCP JSON 发现",
+    "description": "读取项目 .mcp.json 并注册其中的 MCP 服务器。"
+  }
+}

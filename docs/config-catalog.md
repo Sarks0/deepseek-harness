@@ -2327,6 +2327,30 @@ export interface ReconnectConfig {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-mcp-client -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-mcp-json-discovery -->
+<a id="deepseek-aidsh-mcp-json-discovery"></a>
+
+## `@deepseek-ai/dsh-mcp-json-discovery`
+
+- `source`: [`packages/mcp/mcp-json-discovery/src/index.ts:31`](../packages/mcp/mcp-json-discovery/src/index.ts)
+
+```ts config-catalog
+/** Discovery configuration. */
+export interface Config {
+  /** Whether discovery runs; `false` turns the plugin into a no-op. */
+  enabled?: boolean
+  /**
+   * Path of the discovery document. Relative paths resolve against the
+   * harness launch directory (the deployment workspace), the same root the
+   * base bundle's sandbox policy uses.
+   */
+  path?: string
+  /** Picomatch patterns naming servers to leave unregistered; empty keeps all. */
+  excludeServers?: string[]
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-mcp-json-discovery -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-message-feedback -->
 <a id="deepseek-aidsh-message-feedback"></a>
 

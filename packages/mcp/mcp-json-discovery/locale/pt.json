@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Descoberta de MCP JSON",
+    "description": "Lê o .mcp.json do projeto e registra seus servidores MCP."
+  }
+}

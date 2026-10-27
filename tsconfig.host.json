@@ -548,6 +548,7 @@
     { "path": "./packages/experimental/hooks-claude-code" },
     { "path": "./packages/experimental/hooks-codex" },
     { "path": "./packages/mcp/mcp-client" },
+    { "path": "./packages/mcp/mcp-json-discovery" },
     { "path": "./packages/mcp/mcp-resources" },
     { "path": "./packages/host/directory-picker" },
     { "path": "./packages/host/directory-picker-auto" },
