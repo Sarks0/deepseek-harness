@@ -675,6 +675,22 @@ describe('sandbox escalation through ctx.approval', () => {
     expect(schema.parameters.properties).not.toHaveProperty('sandbox_permissions')
   })
 
+  it('escalation requests carry the verbatim command as their remember subject', async () => {
+    const { ctx } = await setupSandboxed(true)
+    try {
+      const seen: { command?: unknown }[] = []
+      ctx.on('approval/request', async (req) => {
+        seen.push({ command: (req.subject as { command?: unknown } | undefined)?.command })
+        return 'allowed-once' as ApprovalOutcome
+      })
+      const result = await call(ctx, 'pwsh', { ...escalate, command: 'Get-VM canary' }, sandboxAgent())
+      expect(result.isError, text(result)).toBe(false)
+      expect(seen).toEqual([{ command: 'Get-VM canary' }])
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('rejects injected escalation without a sandbox and narrower escalation without prompting', async () => {
     const plain = await setup()
     expect(text(await call(plain.ctx, 'pwsh', escalate))).toContain('not available in this composition')

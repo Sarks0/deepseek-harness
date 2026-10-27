@@ -245,13 +245,14 @@ export function apply(ctx: Context, config: Config = {}): void {
     justification: string,
     exec: ToolExecution,
     standingPolicy: SandboxExecutionPolicy | undefined,
+    command: string,
   ): Promise<SandboxMode> => {
     if (escalationModes.length === 0) {
       throw new Error('sandbox_permissions is not available in this composition (no sandboxing executor to escalate)')
     }
     const effectiveMode = (standingPolicy as SandboxExecutionPolicy).mode
     return approveEscalation(
-      { requestedMode: mode, justification, effectiveMode, subject: 'command' },
+      { requestedMode: mode, justification, effectiveMode, subject: 'command', rememberSubject: { command } },
       {
         approver: ctx.get('approval'),
         agent: exec.agent,
@@ -506,7 +507,7 @@ export function apply(ctx: Context, config: Config = {}): void {
         // Description is display metadata; workdir defaults to the caller's session.
         const standingPolicy = resolveSandboxPolicy(exec)
         const approvedMode = args.sandbox_permissions !== undefined && args.justification !== undefined
-          ? await approvePwshEscalation(args.sandbox_permissions, args.justification, exec, standingPolicy)
+          ? await approvePwshEscalation(args.sandbox_permissions, args.justification, exec, standingPolicy, args.command)
           : undefined
         const policy = approvedMode === undefined
           ? standingPolicy

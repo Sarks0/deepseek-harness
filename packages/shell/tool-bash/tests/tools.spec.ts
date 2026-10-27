@@ -793,6 +793,22 @@ describe('sandbox escalation through the generic task producer', () => {
     }
   })
 
+  it('escalation requests carry the verbatim command as their remember subject', async () => {
+    const { ctx } = await setupSandboxed(true)
+    try {
+      const seen: { command?: unknown }[] = []
+      ctx.on('approval/request', async (req) => {
+        seen.push({ command: (req.subject as { command?: unknown } | undefined)?.command })
+        return 'allowed-once' as ApprovalOutcome
+      })
+      const result = await call(ctx, 'bash', { ...escalate, command: 'xfreerdp3 /v:canary' }, sandboxAgent())
+      expect(result.isError, text(result)).toBe(false)
+      expect(seen).toEqual([{ command: 'xfreerdp3 /v:canary' }])
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('rejects injected escalation without a sandbox and narrower escalation without prompting', async () => {
     const plain = await setup()
     expect(text(await call(plain, 'bash', escalate))).toContain('not available in this composition')

@@ -368,6 +368,25 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-api-workspace-files -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-approval-memory -->
+<a id="deepseek-aidsh-approval-memory"></a>
+
+## `@deepseek-ai/dsh-approval-memory`
+
+- `inject`: `approval` · `storageDomain`
+- `source`: [`packages/interaction/approval-memory/src/index.ts:41`](../packages/interaction/approval-memory/src/index.ts)
+
+```ts config-catalog
+/** Plugin config. */
+export interface Config {
+  /** `file` records the exact denied path; `parent-dir` the whole parent directory. */
+  rememberFsScope?: 'file' | 'parent-dir'
+  /** Absolute path prefixes beneath which no grant may be recorded. */
+  denyPrefixes?: string[]
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-approval-memory -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-attachment-local -->
 <a id="deepseek-aidsh-attachment-local"></a>
 

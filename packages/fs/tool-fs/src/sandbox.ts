@@ -81,10 +81,12 @@ export class FsSandboxController {
    * @param toolName - the mutating tool's name, for the approval audit trail.
    * @param args - the call's escalation arguments.
    * @param exec - the tool-execution context (agent, callId, signal).
+   * @param rememberPaths - the call's resolved target paths, forwarded so a
+   *   remembered grant can scope to them.
    * @returns the policy to pass to the mutation, or undefined for an
    *   unsandboxed backend.
    */
-  async resolvePolicy(toolName: string, args: FsEscalationArgs, exec: ToolExecution): Promise<SandboxExecutionPolicy | undefined> {
+  async resolvePolicy(toolName: string, args: FsEscalationArgs, exec: ToolExecution, rememberPaths?: readonly string[]): Promise<SandboxExecutionPolicy | undefined> {
     validateEscalationArgs(args.sandbox_permissions, args.justification)
     const standingPolicy = this.policy?.resolve({ ...exec.agent ? { session: exec.agent.session } : {} })
     if (args.sandbox_permissions === undefined || args.justification === undefined) {
@@ -95,7 +97,8 @@ export class FsSandboxController {
     }
     const policy = standingPolicy as SandboxExecutionPolicy
     const approvedMode = await approveEscalation(
-      { requestedMode: args.sandbox_permissions, justification: args.justification, effectiveMode: policy.mode, subject: 'operation' },
+      { requestedMode: args.sandbox_permissions, justification: args.justification, effectiveMode: policy.mode, subject: 'operation',
+        ...rememberPaths !== undefined ? { rememberSubject: { paths: rememberPaths } } : {} },
       {
         approver: this.ctx.get('approval'),
         agent: exec.agent,

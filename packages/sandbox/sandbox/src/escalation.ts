@@ -124,6 +124,8 @@ export interface EscalationApprover<A = object, C = string> {
     reason: string
     displayReason?: { readonly en: string; readonly [locale: string]: string }
     signal?: AbortSignal
+    /** What a remember-able escalation ask is about; forwarded verbatim when supplied. */
+    subject?: { readonly kind: 'sandbox-escalation'; readonly from: SandboxMode; readonly to: SandboxMode; readonly command?: string; readonly paths?: readonly string[] }
   }): Promise<EscalationOutcome>
 }
 
@@ -157,6 +159,12 @@ export interface EscalationRequest {
   effectiveMode: SandboxMode
   /** The family's noun for the escalated action in user-facing texts (`command` for bash, `operation` for fs). */
   subject: string
+  /**
+   * What a remember-able escalation ask is about, from the asker that knows
+   * its arguments (`command` for shell tools, `paths` for file tools).
+   * Forwarded onto the approval request's `subject`; absent asks stay one-shot.
+   */
+  rememberSubject?: { readonly command?: string; readonly paths?: readonly string[] }
 }
 
 /**
@@ -193,6 +201,15 @@ export async function approveEscalation<A, C>(request: EscalationRequest, approv
     reason: `escalate sandbox to ${mode}: ${justification}`,
     displayReason: escalationDisplayReason(mode, justification),
     ...approval.signal ? { signal: approval.signal } : {},
+    ...request.rememberSubject !== undefined ? {
+      subject: {
+        kind: 'sandbox-escalation' as const,
+        from: effectiveMode,
+        to: mode as SandboxMode,
+        ...request.rememberSubject.command !== undefined ? { command: request.rememberSubject.command } : {},
+        ...request.rememberSubject.paths !== undefined ? { paths: request.rememberSubject.paths } : {},
+      },
+    } : {},
   })
   switch (outcome) {
     // The schema enum already pinned `mode` to the closed target vocabulary;

@@ -94,6 +94,39 @@ describe('approveEscalation', () => {
     })
   })
 
+  it('forwards rememberSubject onto the approval request verbatim', async () => {
+    const seen: { subject?: unknown }[] = []
+    await expect(approveEscalation(
+      req({ rememberSubject: { command: 'xfreerdp3 /v:canary' } }),
+      ingredients({ approver: approver('allowed-once', r => seen.push(r as { subject?: unknown })) }),
+    )).resolves.toBe('workspace-write')
+    expect(seen[0]?.subject).toEqual({
+      kind: 'sandbox-escalation',
+      from: 'read-only',
+      to: 'workspace-write',
+      command: 'xfreerdp3 /v:canary',
+    })
+  })
+
+  it('forwards fs paths and omits the subject entirely when absent', async () => {
+    const seen: { subject?: unknown }[] = []
+    const spy = (r: unknown) => { seen.push(r as { subject?: unknown }) }
+    await expect(approveEscalation(
+      req({ rememberSubject: { paths: ['/lab/notes/report.md'] } }),
+      ingredients({ approver: approver('allowed-once', spy) }),
+    )).resolves.toBe('workspace-write')
+    expect(seen[0]?.subject).toEqual({
+      kind: 'sandbox-escalation',
+      from: 'read-only',
+      to: 'workspace-write',
+      paths: ['/lab/notes/report.md'],
+    })
+    seen.length = 0
+    await expect(approveEscalation(req(), ingredients({ approver: approver('allowed-once', spy) })))
+      .resolves.toBe('workspace-write')
+    expect('subject' in (seen[0] ?? {})).toBe(false)
+  })
+
   it.each(ESCALATION_TARGETS)('repeating %s succeeds without asking for approval', async (mode) => {
     const seen: unknown[] = []
     const request = req({ requestedMode: mode, effectiveMode: mode })

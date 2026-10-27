@@ -47,6 +47,38 @@ function requestOf(agent: Agent, overrides: Partial<ApprovalRequest> = {}): Appr
   return { agent, toolName: 'echo', ...overrides }
 }
 
+describe('ApprovalService.request subject passthrough', () => {
+  it('forwards the remember subject to answerers verbatim', async () => {
+    const ctx = await mounted()
+    const { agent } = fakeAgent(ctx)
+    const seen: { subject?: unknown }[] = []
+    ctx.on('approval/request', async (req, next) => {
+      seen.push({ subject: (req as { subject?: unknown }).subject })
+      return await next()
+    })
+    const outcome = await ctx.approval.request(requestOf(agent, {
+      callId: ToolCallId('call-subject'),
+      subject: { kind: 'sandbox-escalation', from: 'workspace-write', to: 'danger-full-access', command: 'echo hi' },
+    }))
+    expect(outcome).toBe('unavailable')
+    expect(seen).toEqual([{ subject: { kind: 'sandbox-escalation', from: 'workspace-write', to: 'danger-full-access', command: 'echo hi' } }])
+  })
+
+  it('an absent subject reaches answerers as absent and changes nothing', async () => {
+    const ctx = await mounted()
+    const { agent, appended } = fakeAgent(ctx)
+    const seen: { subject?: unknown }[] = []
+    ctx.on('approval/request', async (req, next) => {
+      seen.push({ subject: (req as { subject?: unknown }).subject })
+      return await next()
+    })
+    await expect(ctx.approval.request(requestOf(agent))).resolves.toBe('unavailable')
+    expect(seen).toEqual([{ subject: undefined }])
+    // The audit pair records exactly the pre-existing fields — no subject.
+    expect(appended.map(entry => entry.type)).toEqual(['approval/asked', 'approval/decided'])
+  })
+})
+
 describe('ApprovalService.request', () => {
   it('throws before appending anything when no turn has ever opened (idle ask)', async () => {
     const ctx = await mounted()
