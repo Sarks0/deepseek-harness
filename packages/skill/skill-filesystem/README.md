@@ -71,6 +71,7 @@ Load the plugin alongside the skill registry; it requires `ctx.skills`.
 | `dshHome` | `$DSH_HOME` or `~/.dsh` | Harness config root; its `skills` subdirectory is scanned |
 | `agentsHome` | `$DSH_AGENTS_HOME` or `~/.agents` | Shared agent config root scanned for compatible skills |
 | `customSkillDirs` | `[]` | Additional local skill roots, after project roots and before user roots |
+| `includeSkills` | `[]` | Glob-pattern allowlist over discovered skill names (picomatch syntax, e.g. `vr-*`); a skill is kept only when its name matches at least one pattern, and filtered-out skills are hidden from the catalog and unresolvable. Absent or empty keeps every discovered skill |
 | `watch` | `true` | Watch local roots and invalidate the provider when the catalog may have changed |
 | `bundledSkillDir` | — | Bundled skill root scanned at rank 600 when configured |
 

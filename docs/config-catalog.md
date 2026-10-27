@@ -3188,7 +3188,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-skill-filesystem`
 
 - `inject`: `skills`
-- `source`: [`packages/skill/skill-filesystem/src/index.ts:48`](../packages/skill/skill-filesystem/src/index.ts)
+- `source`: [`packages/skill/skill-filesystem/src/index.ts:50`](../packages/skill/skill-filesystem/src/index.ts)
 
 ```ts config-catalog
 /** Local filesystem skill provider configuration. */
@@ -3203,6 +3203,12 @@ export interface Config {
   agentsHome?: string
   /** Additional skill roots scanned after project roots and before user roots. */
   customSkillDirs?: string[]
+  /**
+   * Glob-pattern allowlist over discovered skill names; a skill is kept only
+   * when its name matches at least one pattern. Absent or empty keeps every
+   * discovered skill.
+   */
+  includeSkills?: string[]
   /** Whether host-local skill roots are watched for catalog changes. */
   watch?: boolean
   /** Whether Chokidar uses polling instead of native filesystem events. */

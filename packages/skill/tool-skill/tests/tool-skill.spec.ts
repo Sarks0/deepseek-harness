@@ -55,7 +55,11 @@ async function writeSkill(root: string, name: string, description: string, body:
   await writeFile(join(dir, 'SKILL.md'), `---\nname: ${name}\ndescription: ${description}\n---\n\n${body}\n`)
 }
 
-async function setup(home: string, config: toolSkill.Config = {}): Promise<Context> {
+async function setup(
+  home: string,
+  config: toolSkill.Config = {},
+  fsConfig: Partial<SkillFileSystem.Config> = {},
+): Promise<Context> {
   const ctx = new Context()
   provideWorkingDirectoryFixture(ctx, home)
   await ctx.plugin(SystemPrompt)
@@ -64,7 +68,12 @@ async function setup(home: string, config: toolSkill.Config = {}): Promise<Conte
   await ctx.plugin(NativeToolExecutor)
   await ctx.plugin(AgentRegistry)
   await ctx.plugin(SkillRegistry)
-  await ctx.plugin(SkillFileSystem, { dshHome: join(home, '.dsh'), agentsHome: join(home, '.agents'), watch: false })
+  await ctx.plugin(SkillFileSystem, {
+    dshHome: join(home, '.dsh'),
+    agentsHome: join(home, '.agents'),
+    watch: false,
+    ...fsConfig,
+  })
   await ctx.plugin(toolSkill, config)
   return ctx
 }
@@ -1243,5 +1252,30 @@ describe('user-explicit invocation injection', () => {
       .filter(message => (message.source as { kind?: string }).kind === 'skill-invocation')
       .map(message => (message.source as { name: string }).name)
     expect(invoked).toEqual(['shared-skill'])
+  })
+
+  it('leaves a gesture naming a filesystem-filtered skill as plain prose', async () => {
+    const home = await tempDir('invoke-filtered')
+    const skillsRoot = join(home, '.agents', 'skills')
+    await writeSkill(skillsRoot, 'filtered-demo', 'Filtered skill', 'Never injected.')
+    await writeSkill(skillsRoot, 'kept-skill', 'Kept skill', 'Kept instructions.')
+    const ctx = await setup(home, {}, { includeSkills: ['kept-*'] })
+    const agent = agentForCwd(home)
+
+    const decision = await proposeStep(ctx, agent, [gesture('/filtered-demo go')])
+
+    if (decision.kind !== 'enter') throw new Error('expected enter')
+    const invoked = decision.messages
+      .filter(message => (message.source as { kind?: string }).kind === 'skill-invocation')
+      .map(message => (message.source as { name: string }).name)
+    expect(invoked).toEqual([])
+    expect(JSON.stringify(decision.messages)).not.toContain('Never injected.')
+    // The catalog published only the allowed skill.
+    const catalog = decision.messages.find(message => (message.source as { kind?: string }).kind === 'skill-catalog')
+    expect(catalog?.source).toMatchObject({
+      kind: 'skill-catalog',
+      form: 'catalog',
+      entries: [{ name: 'kept-skill', description: 'Kept skill' }],
+    })
   })
 })

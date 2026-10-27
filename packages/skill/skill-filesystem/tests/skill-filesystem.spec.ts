@@ -218,6 +218,50 @@ describe('FileSystemSkillProvider', () => {
     expect((await ctx.skills.list({ cwd: noGit })).map(skill => skill.name)).toContain('fallback-root')
   })
 
+  it('filters the discovered catalog through the includeSkills glob allowlist', async () => {
+    const home = await tempDir('skill-include')
+    const project = await tempDir('skill-include-project')
+    await mkdir(join(project, '.git'), { recursive: true })
+
+    await writeSkill(join(project, '.dsh/skills'), 'vr-rdp', 'Project RDP skill')
+    await writeSkill(join(project, '.agents/skills'), 'editor-helper', 'Project editor skill')
+    await writeSkill(join(home, '.dsh/skills'), 'vr-terminal', 'User terminal skill')
+    await writeSkill(join(home, '.agents/skills'), 'unrelated-skill', 'User unrelated skill')
+
+    const unfiltered = await setupLocal(home)
+    expect((await unfiltered.skills.list({ cwd: project })).map(skill => skill.name)).toEqual([
+      'editor-helper',
+      'unrelated-skill',
+      'vr-rdp',
+      'vr-terminal',
+    ])
+
+    const ctx = await setupLocal(home, { includeSkills: ['vr-*', 'editor-helper'] })
+    expect((await ctx.skills.list({ cwd: project })).map(skill => skill.name)).toEqual([
+      'editor-helper',
+      'vr-rdp',
+      'vr-terminal',
+    ])
+    // A filtered-out skill is unresolvable, not merely hidden from listings.
+    expect(await ctx.skills.get('unrelated-skill', { cwd: project })).toBeUndefined()
+    expect((await ctx.skills.get('vr-rdp', { cwd: project }))?.content).toBe('Use the skill.')
+  })
+
+  it('treats an empty includeSkills list as no filtering', async () => {
+    const home = await tempDir('skill-include-empty')
+    const project = await tempDir('skill-include-empty-project')
+    await mkdir(join(project, '.git'), { recursive: true })
+    await writeSkill(join(project, '.dsh/skills'), 'any-skill', 'Any skill')
+    await writeSkill(join(home, '.dsh/skills'), 'other-skill', 'Other skill')
+
+    const ctx = await setupLocal(home, { includeSkills: [] })
+
+    expect((await ctx.skills.list({ cwd: project })).map(skill => skill.name)).toEqual([
+      'any-skill',
+      'other-skill',
+    ])
+  })
+
   it('lets project skills override runtime while runtime overrides custom and user skills', async () => {
     const home = await tempDir('skill-runtime-priority')
     const project = await tempDir('skill-runtime-project')

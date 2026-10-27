@@ -14734,6 +14734,9 @@ importers:
       chokidar:
         specifier: 5.0.0
         version: 5.0.0
+      picomatch:
+        specifier: ^4.0.7
+        version: 4.0.7
       yaml:
         specifier: ^2.4.2
         version: 2.9.0
@@ -14750,6 +14753,9 @@ importers:
       '@deepseek-ai/dsh-skill':
         specifier: workspace:*
         version: link:../skill
+      '@types/picomatch':
+        specifier: ^4.0.3
+        version: 4.0.3
 
   packages/skill/skill-office:
     dependencies:
@@ -29991,6 +29997,10 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.4
 
+  fdir@6.5.0(picomatch@4.0.7):
+    optionalDependencies:
+      picomatch: 4.0.7
+
   fetch-blob@3.2.0:
     dependencies:
       node-domexception: 1.0.0
@@ -32636,8 +32646,8 @@ snapshots:
 
   tinyglobby@0.2.17:
     dependencies:
-      fdir: 6.5.0(picomatch@4.0.4)
-      picomatch: 4.0.4
+      fdir: 6.5.0(picomatch@4.0.7)
+      picomatch: 4.0.7
 
   tinyrainbow@3.1.0: {}
 
