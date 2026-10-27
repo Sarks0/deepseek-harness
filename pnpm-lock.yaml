@@ -394,6 +394,9 @@ importers:
       '@deepseek-ai/dsh-mcp-client':
         specifier: workspace:*
         version: link:../../packages/mcp/mcp-client
+      '@deepseek-ai/dsh-mcp-json-discovery':
+        specifier: workspace:*
+        version: link:../../packages/mcp/mcp-json-discovery
       '@deepseek-ai/dsh-mcp-resources':
         specifier: workspace:*
         version: link:../../packages/mcp/mcp-resources
