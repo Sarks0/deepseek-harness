@@ -1484,6 +1484,9 @@ importers:
       '@deepseek-ai/dsh-api-workspace-files':
         specifier: workspace:*
         version: link:../workspace-files
+      '@deepseek-ai/dsh-approval-memory':
+        specifier: workspace:*
+        version: link:../../interaction/approval-memory
       '@deepseek-ai/dsh-client-connection':
         specifier: workspace:*
         version: link:../../client/connection
@@ -3724,6 +3727,9 @@ importers:
       '@deepseek-ai/dsh-typert-protocol':
         specifier: workspace:*
         version: link:../../typert/protocol
+      '@deepseek-ai/dsh-user-approval':
+        specifier: workspace:*
+        version: link:../../interaction/user-approval
       react:
         specifier: ^18.2.0
         version: 18.3.1

@@ -1,5 +1,6 @@
 /** Approval composer and optional correlated-detail contracts. */
 import type { ToolCallId } from '@deepseek-ai/dsh-llm'
+import type { ApprovalRememberSubject } from '@deepseek-ai/dsh-user-approval/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
   PropsLocale, PropsRenderFactories, PropsRuntime,
@@ -68,6 +69,8 @@ export interface ApprovalPresentationRequest {
   readonly reason?: string
   /** Localized presentation copy; the audit reason remains unchanged. */
   readonly displayReason?: { readonly en: string; readonly [locale: string]: string }
+  /** What a remember-able ask is about; present only when the asker supplied one. */
+  readonly subject?: ApprovalRememberSubject
   /** Cancellation projected from the Host waterfall. */
   readonly signal?: AbortSignal
 }
@@ -90,6 +93,8 @@ export class PendingApproval {
   readonly toolName: string
   /** Correlated Tool call, when supplied by the asker. */
   readonly callId: ToolCallId | undefined
+  /** What a remember-able ask is about; undefined when the asker supplied none. */
+  readonly subject: ApprovalRememberSubject | undefined
   /** Human-readable reason supplied by the asker. */
   readonly reason: string | undefined
   /** Localized presentation copy, when supplied by the asker. */
@@ -114,6 +119,7 @@ export class PendingApproval {
     this.key = `approval:${String(nextApprovalKey)}`
     this.toolName = request.toolName
     this.callId = request.callId
+    this.subject = request.subject
     this.reason = request.reason
     this.displayReason = request.displayReason
     const completion = Promise.withResolvers<ApprovalDecision>()
@@ -193,6 +199,15 @@ export interface ApprovalInjected {
    * @returns text for the active UI language.
    */
   resolveReason(reason: NonNullable<ApprovalPresentationRequest['displayReason']>): string
+  /**
+   * Record a remembered grant for a still-pending ask through the
+   * approval-memory Remote. Absent when the plugin or the ask's subject is
+   * not available; a false return means recording was refused and the ask
+   * stays open.
+   * @param pending - the pending ask to remember.
+   * @returns whether the grant was recorded.
+   */
+  remember?(pending: PendingApproval): Promise<boolean>
 }
 
 /** Full props of the approval composer takeover. */
