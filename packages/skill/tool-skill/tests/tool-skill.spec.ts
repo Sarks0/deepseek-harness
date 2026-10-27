@@ -155,9 +155,17 @@ function catalogMessages(session: Session): Extract<SessionEvent, { type: 'user/
 function readableCatalog(event: Extract<SessionEvent, { type: 'user/message' }>): boolean {
   const entries = (event.data.source as { entries?: unknown }).entries
   return Array.isArray(entries)
-    && entries.every(entry => typeof entry === 'object' && entry !== null
-      && typeof (entry as { name?: unknown }).name === 'string'
-      && typeof (entry as { description?: unknown }).description === 'string')
+    && entries.every((entry) => {
+      if (typeof entry !== 'object' || entry === null) return false
+      const { name, description, whenToUse } = entry as {
+        name?: unknown
+        description?: unknown
+        whenToUse?: unknown
+      }
+      return typeof name === 'string'
+        && typeof description === 'string'
+        && (whenToUse === undefined || typeof whenToUse === 'string')
+    })
 }
 
 function catalogContent(entries: string[]): Message['content'] {
@@ -246,13 +254,13 @@ describe('dsh-tool-skill', () => {
     expect(seenSignal).toBe(controller.signal)
   })
 
-  it('injects a stable durable name-and-description catalog at the first step', async () => {
+  it('injects a stable durable catalog with routing hints at the first step', async () => {
     const home = await tempDir('tool-catalog')
     const ctx = await setup(home, { catalogDescriptionMaxLength: 50 })
     ctx.skills.register({
       name: 'z-skill',
       description: 'Long   description '.repeat(5),
-      whenToUse: 'Never render this routing hint.',
+      whenToUse: 'Use for z-category tasks.',
       source: 'secret-source',
       provider: 'runtime',
       resourceBase: { kind: 'directory', path: '/secret/path' },
@@ -312,7 +320,7 @@ describe('dsh-tool-skill', () => {
           entries: [
             { name: 'a-skill', description: 'Use {{placeholder}} <safely> & carefully.' },
             { name: 'model-only-skill', description: 'Model-only skill.' },
-            { name: 'z-skill', description: 'Long description Long description Long descript...' },
+            { name: 'z-skill', description: 'Long description Long description Long descript...', whenToUse: 'Use for z-category tasks.' },
           ],
         },
         content: [{
@@ -324,7 +332,7 @@ describe('dsh-tool-skill', () => {
             '<available_skills>',
             '- `a-skill`: Use {{placeholder}} &lt;safely&gt; &amp; carefully.',
             '- `model-only-skill`: Model-only skill.',
-            '- `z-skill`: Long description Long description Long descript...',
+            '- `z-skill`: Long description Long description Long descript... — use when: Use for z-category tasks.',
             '</available_skills>',
             '',
             "If the user names a skill, or the task clearly matches a skill's description, call the `skill` tool with the exact skill name before taking task actions. Load all applicable skills, then follow their full instructions. This catalog contains summaries only; do not infer or follow a skill's instructions until it has been loaded.",
@@ -335,12 +343,108 @@ describe('dsh-tool-skill', () => {
       },
     ])
     const rendered = JSON.stringify(prefix[1])
-    expect(rendered).not.toContain('whenToUse')
+    expect(JSON.stringify(prefix[1]?.content)).not.toContain('whenToUse')
     expect(rendered).not.toContain('secret-source')
     expect(rendered).not.toContain('/secret/path')
     expect(rendered).not.toContain('Secret body')
     expect(rendered).not.toContain('user-only-skill')
     expect(renderPrompt(await ctx.systemPrompt.assemble({ agent: agentForCwd('/workspace') }))).not.toContain('<available_skills>')
+  })
+
+  it('caps and truncates rendered routing hints at the configured boundary', async () => {
+    const home = await tempDir('tool-catalog-hint-caps')
+    const ctx = await setup(home, { catalogWhenToUseMaxLength: 20 })
+    ctx.skills.register({
+      name: 'exact-hint',
+      description: 'Exact hint skill.',
+      whenToUse: 'a'.repeat(20),
+      source: 'runtime',
+      content: 'Exact body.',
+    })
+    ctx.skills.register({
+      name: 'over-hint',
+      description: 'Over hint skill.',
+      whenToUse: `${'b'.repeat(18)} overflow`,
+      source: 'runtime',
+      content: 'Over body.',
+    })
+
+    const prefix = await composePrefix(ctx, '/workspace')
+
+    const rendered = JSON.stringify(prefix)
+    expect(rendered).toContain(`- \`exact-hint\`: Exact hint skill. — use when: ${'a'.repeat(20)}`)
+    expect(rendered).toContain(`- \`over-hint\`: Over hint skill. — use when: ${'b'.repeat(17)}...`)
+  })
+
+  it('keeps the default description cap at a length that preserves trigger lists', async () => {
+    const home = await tempDir('tool-catalog-default-cap')
+    const ctx = await setup(home)
+    ctx.skills.register({
+      name: 'long-description',
+      description: 'x'.repeat(1000),
+      whenToUse: 'y'.repeat(500),
+      source: 'runtime',
+      content: 'Long body.',
+    })
+
+    const prefix = await composePrefix(ctx, '/workspace')
+
+    const rendered = JSON.stringify(prefix)
+    expect(rendered).toContain(`: ${'x'.repeat(1000)} — use when: ${'y'.repeat(500)}`)
+    expect(rendered).not.toContain('xxx...')
+  })
+
+  it('republishes the catalog only when a routing hint changes', async () => {
+    const home = await tempDir('tool-catalog-hint-digest')
+    const ctx = await setup(home)
+    let whenToUse = 'Original trigger.'
+    const provider = {
+      name: 'mutable',
+      async list() {
+        return [{
+          name: 'mutable-skill',
+          description: 'Mutable skill.',
+          whenToUse,
+          invocation: { modelInvocable: true, userInvocable: true },
+          source: 'runtime' as const,
+          provider: 'mutable',
+          rank: 1,
+          locator: null,
+        }]
+      },
+      async get() {
+        return {
+          name: 'mutable-skill',
+          description: 'Mutable skill.',
+          whenToUse,
+          invocation: { modelInvocable: true, userInvocable: true },
+          source: 'runtime' as const,
+          provider: 'mutable',
+          content: 'Mutable body.',
+        }
+      },
+    }
+    let invalidate = (): void => {}
+    ctx.skills.registerProvider((control) => {
+      invalidate = control.invalidate
+      return provider
+    })
+    const session = Session.create(SessionId('catalog-hint-digest'))
+    const agent = sessionAgent(session)
+    openMessageTurn(session)
+
+    await fireStep(ctx, agent, 1, 1)
+    await fireStep(ctx, agent, 1, 2)
+    expect(catalogMessages(session)).toHaveLength(1)
+
+    whenToUse = 'Revised trigger.'
+    invalidate()
+    await fireStep(ctx, agent, 1, 3)
+
+    const published = catalogMessages(session)
+    expect(published).toHaveLength(2)
+    expect(published[1]?.data.source).toMatchObject({ kind: 'skill-catalog', form: 'catalog', update: true })
+    expect(JSON.stringify(published[1]?.data.content)).toContain('Revised trigger.')
   })
 
   it('does not inject a catalog when no model-invocable skills are available', async () => {
@@ -608,6 +712,7 @@ describe('dsh-tool-skill', () => {
       { kind: 'skill-catalog', form: 'catalog', entries: [null] },
       { kind: 'skill-catalog', form: 'catalog', entries: [{ name: 'x' }] },
       { kind: 'skill-catalog', form: 'catalog', entries: [{ description: 'no name' }] },
+      { kind: 'skill-catalog', form: 'catalog', entries: [{ name: 'x', description: 'd', whenToUse: 5 }] },
     ]) {
       session.append('user/message', createUserMessage({
         content: [{ type: 'text', text: 'unreadable catalog' }],
@@ -617,7 +722,7 @@ describe('dsh-tool-skill', () => {
 
     await expect(fireStep(ctx, agent, 1, 1)).resolves.toBeUndefined()
 
-    // None of the six counted as published, so the live catalog lands as a
+    // None of the seven counted as published, so the live catalog lands as a
     // first publication rather than a replacement.
     const published = catalogMessages(session).filter(event => readableCatalog(event))
     expect(published).toHaveLength(1)
@@ -811,6 +916,7 @@ describe('dsh-tool-skill', () => {
     await ctx.plugin(SkillFileSystem, { dshHome: join(home, '.dsh'), agentsHome: join(home, '.agents'), watch: false })
 
     await expect(ctx.plugin(toolSkill, { catalogDescriptionMaxLength: 2 })).rejects.toThrow('greater than or equal to 3')
+    await expect(ctx.plugin(toolSkill, { catalogWhenToUseMaxLength: 2 })).rejects.toThrow('greater than or equal to 3')
   })
 
   it('loads a skill for the calling agent cwd', async () => {

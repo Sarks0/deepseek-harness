@@ -25,7 +25,8 @@ import {
 export const name = 'tool-skill'
 export const inject = ['agents', 'tools', 'skills', 'workingDirectory']
 
-const DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH = 500
+const DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH = 1000
+const DEFAULT_CATALOG_WHEN_TO_USE_MAX_LENGTH = 500
 /**
  * Durable provider and item records for one published session skill catalog. The catalog is a
  * `catalog`-form context, so it records the entries it published beside the
@@ -38,7 +39,11 @@ export interface SkillCatalogSource {
   /** Marks a replacement catalog rather than this session's first publication. */
   readonly update?: true
   /** Exactly the entries this message published, in catalog order. */
-  readonly entries: readonly { readonly name: string; readonly description: string }[]
+  readonly entries: readonly {
+    readonly name: string
+    readonly description: string
+    readonly whenToUse?: string
+  }[]
 }
 
 declare module '@deepseek-ai/dsh-llm' {
@@ -51,10 +56,14 @@ declare module '@deepseek-ai/dsh-llm' {
 function catalogSourceEntries(
   skills: SkillSummary[],
   descriptionMaxLength: number,
+  whenToUseMaxLength: number,
 ): SkillCatalogSource['entries'] {
   return skills.map(skill => ({
     name: skill.name,
     description: catalogDescription(skill.description, descriptionMaxLength),
+    ...skill.whenToUse !== undefined ? {
+      whenToUse: catalogDescription(skill.whenToUse, whenToUseMaxLength),
+    } : {},
   }))
 }
 
@@ -62,11 +71,14 @@ function catalogSourceEntries(
 export interface Config {
   /** Maximum normalized description length rendered in the session catalog; minimum 3. */
   catalogDescriptionMaxLength?: number
+  /** Maximum normalized when-to-use length rendered in the session catalog; minimum 3. */
+  catalogWhenToUseMaxLength?: number
 }
 
 /** Validate and default the model-facing skill catalog configuration. */
 export const Config: z<Config> = z.object({
   catalogDescriptionMaxLength: z.number().default(DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH),
+  catalogWhenToUseMaxLength: z.number().default(DEFAULT_CATALOG_WHEN_TO_USE_MAX_LENGTH),
 })
 
 /**
@@ -78,6 +90,8 @@ export const Config: z<Config> = z.object({
 export function apply(ctx: Context, config: Config = {}): void {
   const catalogDescriptionMaxLength = config.catalogDescriptionMaxLength ?? DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH
   assertPositiveInteger('catalogDescriptionMaxLength', catalogDescriptionMaxLength, 3)
+  const catalogWhenToUseMaxLength = config.catalogWhenToUseMaxLength ?? DEFAULT_CATALOG_WHEN_TO_USE_MAX_LENGTH
+  assertPositiveInteger('catalogWhenToUseMaxLength', catalogWhenToUseMaxLength, 3)
 
   const skillTool = defineTool({
     name: 'skill',
@@ -226,7 +240,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     signal.throwIfAborted()
     if (!snapshot.complete) return decision
     const skills = snapshot.skills.filter(isModelInvocable)
-    const entries = catalogSourceEntries(skills, catalogDescriptionMaxLength)
+    const entries = catalogSourceEntries(skills, catalogDescriptionMaxLength, catalogWhenToUseMaxLength)
     const digest = digestCatalogEntries(entries)
     const history = catalogHistory(agent)
     const existing = catalogMessage(decision.messages)
@@ -319,7 +333,12 @@ function renderCatalogUpdate(entries: SkillCatalogSource['entries']): UserMessag
  * no escapable character.
  */
 function renderCatalogEntries(entries: SkillCatalogSource['entries']): string[] {
-  return entries.map(entry => `- \`${entry.name}\`: ${escapeText(entry.description)}`)
+  return entries.map((entry) => {
+    const guidance = entry.whenToUse === undefined
+      ? ''
+      : ` — use when: ${escapeText(entry.whenToUse)}`
+    return `- \`${entry.name}\`: ${escapeText(entry.description)}${guidance}`
+  })
 }
 
 /**
@@ -330,7 +349,11 @@ function renderCatalogEntries(entries: SkillCatalogSource['entries']): string[] 
 function digestCatalogEntries(entries: SkillCatalogSource['entries']): string {
   // JSON per entry rather than a separator character: every separator is itself
   // a legal description character, so only quoting makes the boundary exact.
-  const canonical = entries.map(entry => JSON.stringify([entry.name, entry.description])).join('\n')
+  // `whenToUse` rides in the same tuple, so a changed routing hint republishes
+  // the catalog exactly like a changed description.
+  const canonical = entries
+    .map(entry => JSON.stringify([entry.name, entry.description, entry.whenToUse ?? null]))
+    .join('\n')
   return createHash('sha256')
     .update(canonical)
     .digest('hex')
@@ -350,12 +373,19 @@ function digestCatalogEntries(entries: SkillCatalogSource['entries']): string {
 function readCatalogEntries(source: unknown): SkillCatalogSource['entries'] | undefined {
   const entries = (source as { entries?: unknown }).entries
   if (!Array.isArray(entries)) return undefined
-  const readable: { name: string; description: string }[] = []
+  const readable: { name: string; description: string; whenToUse?: string }[] = []
   for (const entry of entries as readonly unknown[]) {
     if (typeof entry !== 'object' || entry === null) return undefined
-    const { name, description } = entry as { name?: unknown; description?: unknown }
+    const { name, description, whenToUse } = entry as {
+      name?: unknown
+      description?: unknown
+      whenToUse?: unknown
+    }
     if (typeof name !== 'string' || name === '' || typeof description !== 'string') return undefined
-    readable.push({ name, description })
+    // A record written before routing hints joined the catalog carries no
+    // `whenToUse`; anything else here must be a string.
+    if (whenToUse !== undefined && typeof whenToUse !== 'string') return undefined
+    readable.push(whenToUse === undefined ? { name, description } : { name, description, whenToUse })
   }
   return readable
 }
