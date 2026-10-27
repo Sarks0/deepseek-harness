@@ -69,6 +69,7 @@ shell 提权（`bash`/`pwsh` 的 `sandbox_permissions` 重试）记住**逐字�
 
 无；授权只改变哪些审批请求会到达人类，绝不改变任何模型可见的请求内容。
 
+<a id="known-limitations-and-deferred-work"></a>
 ## 已知限制与后续工作
 
 - **非提权询问不可记忆** —— `tools/pre-execute` 询问不携带主体，保持一次性。

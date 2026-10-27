@@ -372,7 +372,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-approval-memory`
 
 - `inject`: `approval` · `storageDomain`
-- `source`: [`packages/interaction/approval-memory/src/index.ts:41`](../packages/interaction/approval-memory/src/index.ts)
+- `source`: [`packages/interaction/approval-memory/src/index.ts:43`](../packages/interaction/approval-memory/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config. */

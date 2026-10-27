@@ -32,7 +32,7 @@ Selection is always an explicit act — no shipped default uses `lab`:
 For a machine that is not disposable, prefer keeping the sandbox and remembering specific grants instead:
 
 1. Keep `workspace-write` + `ask` (the default).
-2. Enable remembered approval grants with `DSH_APPROVAL_MEMORY=on`, and answer **Always allow** only for the exact command or file a task needs repeated.
+2. Enable [remembered approval grants](../../subsystems/approval.md#remembered-grants) with `DSH_APPROVAL_MEMORY=on`, and answer **Always allow** only for the exact command or file a task needs repeated.
 
 The sandbox then still confines everything except the scopes you explicitly remembered.
 

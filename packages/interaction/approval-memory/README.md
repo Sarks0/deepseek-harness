@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use `dsh-approval-memory` to remember explicit "Always allow" decisions so an identical ask never prompts again. A prepend answerer over the `approval/request` waterfall checks a durable grant store before any human answerer: a match answers `allowed-once` (the standard audit pair is still appended by the approval service), a miss delegates unchanged, and the plugin's own failures delegate too, so a broken store behaves exactly like "not composed". Recording happens only through the `remember` Remote — the Web UI's previously dormant "Always allow" button — which validates the still-pending ask, computes a conservative scope, and refuses scopes beneath `denyPrefixes` (the harness home by default).
+Use `dsh-approval-memory` to remember explicit "Always allow" decisions so an identical ask never prompts again. A prepend answerer over the `approval/request` waterfall checks a durable grant store before any human answerer: a match answers `allowed-once` (the standard audit pair still lands), a miss delegates unchanged, and the plugin's own failures delegate too, so a broken store behaves exactly like "not composed". Recording happens only through the `remember` Remote — the Web UI's "Always allow" button — which validates the still-pending ask, computes a conservative scope, and refuses scopes beneath `denyPrefixes` (the harness home by default).
 
 ## Table of Contents
 

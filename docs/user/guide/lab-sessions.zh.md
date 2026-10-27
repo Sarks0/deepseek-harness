@@ -32,7 +32,7 @@
 对于并非一次性的机器，优先保留沙箱并改为记忆特定授权：
 
 1. 保持 `workspace-write` + `ask`（默认值）。
-2. 以 `DSH_APPROVAL_MEMORY=on` 启用被记住的审批授权，并且只对任务需要重复执行的精确命令或文件回答 **Always allow**。
+2. 以 `DSH_APPROVAL_MEMORY=on` 启用[被记住的审批授权](../../subsystems/approval.zh.md#remembered-grants)，并且只对任务需要重复执行的精确命令或文件回答 **Always allow**。
 
 沙箱随后仍约束一切，只有你显式记住的范围例外。
 
