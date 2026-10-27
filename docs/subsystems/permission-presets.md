@@ -8,7 +8,7 @@ Source: [`packages/interaction/permission-presets/src/index.ts`](../../packages/
 
 ## The preset table
 
-A preset maps one stable key to a sandbox/approval bundle plus optional client presentation. The default configured table ships `workspace-write` (`workspace-write` + `ask`) and `danger-full-access` (`danger-full-access` + `never`); `custom` and `auto` are reserved and cannot be configured.
+A preset maps one stable key to a sandbox/approval bundle plus optional client presentation. The default configured table ships `workspace-write` (`workspace-write` + `ask`) and `danger-full-access` (`danger-full-access` + `never`); `custom` and `auto` are reserved and cannot be configured. The shipped base composition also configures `read-only` and `lab` — the latter the explicit unattended selection documented in [Lab sessions](../user/guide/lab-sessions.md).
 
 ```ts type-equiv
 /** One preset's sandbox/approval bundle and optional client presentation. */

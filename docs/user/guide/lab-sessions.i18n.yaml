@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for lab-sessions.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/user/guide/lab-sessions.md
+/lab-sessions:
+  en: cdd79fd6c60acc48
+  zh: c38e80b312e9d082
+/lab-sessions/what-lab-enables:
+  en: 129ee5ce9785120f
+  zh: 2fbf6913f8f02615
+/lab-sessions/select-it:
+  en: aaa4350de8882ea9
+  zh: 976cce9a777e1351
+/lab-sessions/what-still-holds:
+  en: a27b64da47bbefee
+  zh: 8f96c6d3dcaea865
+/lab-sessions/the-safer-composition:
+  en: 60a51003061bc9b0
+  zh: 359a735140786398
+/lab-sessions/leave-lab:
+  en: fbc2506492c4c10e
+  zh: c49c895b59cd8968

@@ -274,6 +274,15 @@
           danger-full-access:
             sandbox: danger-full-access
             approval: never
+          # An explicit, legible selection for isolated lab machines: no file
+          # sandbox and no approval prompts, named so the picker says what
+          # it does. Selection is always an explicit act; every attempted
+          # escalation still writes the approval audit pair.
+          lab:
+            sandbox: danger-full-access
+            approval: never
+            name: 'lab — unattended (unsafe)'
+            description: 'No file sandbox and no approval prompts. Isolated lab machines only; every attempted escalation is still audit-logged.'
 
     - id: shell-env
       name: '@deepseek-ai/dsh-shell-env'
