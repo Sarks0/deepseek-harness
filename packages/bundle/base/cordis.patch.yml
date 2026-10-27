@@ -261,6 +261,13 @@
       config:
         policy: !!js "(process.env.DSH_PERMISSION_MODE ?? 'workspace-write') === 'danger-full-access' ? 'never' : 'ask'"
 
+    # Remembered approval grants: opt-in by environment (the same row-gating
+    # mechanism as the platform shell rows). Disabled, the plugin never loads
+    # — no listener, no store, no UI change.
+    - id: approval-memory
+      name: '@deepseek-ai/dsh-approval-memory'
+      disabled: !!js process.env.DSH_APPROVAL_MEMORY !== 'on'
+
     - id: permission
       name: '@deepseek-ai/dsh-permission-presets'
       config:
