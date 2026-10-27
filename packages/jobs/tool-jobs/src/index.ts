@@ -1,5 +1,5 @@
 /**
- * Model-facing `job_output`, `job_list`, and `job_kill` tools over
+ * Model-facing `job_input`, `job_output`, `job_list`, and `job_kill` tools over
  * `ctx.jobs`. Loading the plugin attaches the controller required by
  * producers. It also delivers completions the model has not already
  * collected to the owning agent: injected into a busy owner's next step, or
