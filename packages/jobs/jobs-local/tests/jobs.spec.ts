@@ -1667,3 +1667,51 @@ describe('owned job Session lifecycle records', () => {
     }
   })
 })
+
+describe('LocalJobRegistry.write', () => {
+  it('routes to the producer input hook and reports written bytes', async () => {
+    const ctx = await harness()
+    const writes: { text: string; close: boolean }[] = []
+    const p = producer({
+      input(text, options) {
+        writes.push({ text, close: options?.close === true })
+        return Buffer.byteLength(text, 'utf8')
+      },
+    })
+    const id = ctx.jobs.start(p.spec)
+
+    expect(ctx.jobs.write(id, 'yes\n')).toBe(4)
+    expect(ctx.jobs.write(id, '', { close: true })).toBe(0)
+    expect(writes).toEqual([
+      { text: 'yes\n', close: false },
+      { text: '', close: true },
+    ])
+  })
+
+  it('reports a job whose producer started no stdin', async () => {
+    const ctx = await harness()
+    const id = ctx.jobs.start(producer().spec)
+
+    expect(() => ctx.jobs.write(id, 'x')).toThrow('has no stdin to write to')
+  })
+
+  it('refuses a settled job', async () => {
+    const ctx = await harness()
+    const p = producer({ input: () => 1 })
+    const id = ctx.jobs.start(p.spec)
+    p.settle({ status: 'completed' })
+    await tick()
+
+    expect(() => ctx.jobs.write(id, 'x')).toThrow('already finished (completed)')
+  })
+
+  it('throws for unknown and foreign jobs', async () => {
+    const ctx = await harness()
+    expect(() => ctx.jobs.write(JobId('bash-missing'), 'x')).toThrow('unknown job bash-missing')
+
+    const owner = await liveAgent(ctx, 'write-owner')
+    const id = ctx.jobs.start(producer({ owner, input: () => 1 }).spec)
+    expect(() => ctx.jobs.write(id, 'x', undefined, SessionId('other-session'))).toThrow('belongs to another session')
+    expect(ctx.jobs.write(id, 'x', undefined, owner.id)).toBe(1)
+  })
+})

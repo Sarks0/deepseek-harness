@@ -124,6 +124,15 @@ export function processJob(
       controller.abort(reason)
       process?.kill()
     },
+    input: (text: string, options?: { close?: boolean }): number => {
+      if (process === undefined) {
+        throw new Error('the job is still preparing; its process has no stdin yet')
+      }
+      if (process.writeInput === undefined) {
+        throw new Error('the job has no stdin to write to (it was not started with one)')
+      }
+      return process.writeInput(text, options)
+    },
     done,
   }
 }

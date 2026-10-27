@@ -145,6 +145,7 @@ class RecordingSandboxExecutor extends ShellExecutor {
       command: request.command,
       workdir: request.workdir ?? process.cwd(),
       stdoutMaxBytes: request.stdoutMaxBytes ?? 64_000,
+      liveStdin: request.liveStdin === true,
       timeoutMs: request.timeoutMs ?? 1000,
       onExpiry: request.onExpiry ?? 'kill',
       ...request.signal ? { signal: request.signal } : {},
@@ -195,6 +196,7 @@ class CountingStartExecutor extends ShellExecutor {
       timeoutMs: request.timeoutMs ?? 0,
       onExpiry: request.onExpiry ?? 'kill',
       stdoutMaxBytes: request.stdoutMaxBytes ?? 64_000,
+      liveStdin: request.liveStdin === true,
       sandboxPolicy: request.sandboxPolicy,
     }
   }
@@ -426,7 +428,7 @@ describe('bash tool', () => {
   it('registers the bash schema with run_in_background exposed while a job registry is composed', async () => {
     const ctx = await setupWithJobs()
     const schemas = ctx.tools.schemas()
-    expect(schemas.map(schema => schema.name).sort()).toEqual(['bash', 'job_kill', 'job_list', 'job_output'])
+    expect(schemas.map(schema => schema.name).sort()).toEqual(['bash', 'job_input', 'job_kill', 'job_list', 'job_output'])
     const bashSchema = schemas.find(schema => schema.name === 'bash')!
     expect(bashSchema.parameters).toMatchObject({
       type: 'object',
@@ -1327,6 +1329,7 @@ describe('the model-facing bash tool builds its request from named args only (no
         timeoutMs: request.timeoutMs ?? 0,
         onExpiry: request.onExpiry ?? 'kill',
         stdoutMaxBytes: request.stdoutMaxBytes ?? 64_000,
+        liveStdin: request.liveStdin === true,
         ...request.signal ? { signal: request.signal } : {},
         ...request.stdin !== undefined ? { stdin: request.stdin } : {},
         ...request.env !== undefined ? { env: request.env } : {},

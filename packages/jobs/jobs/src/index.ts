@@ -153,14 +153,26 @@ export abstract class JobRegistry extends Service {
   /**
    * Request cancellation, then mark the job stopping. A producer throw
    * propagates without changing job state. A supplied reason is merged into
-   * terminal `detail` when the job settles `killed`. Throws for an unknown
-   * or foreign job.
+   * terminal `detail` when the job settles `killed`. Throws for an unknown or
+   * foreign job.
    * @param id - job to cancel.
    * @param caller - killing session checked against the owner.
    * @param reason - cancellation reason forwarded verbatim to the producer.
    * @returns `requested` for live work, otherwise `already-finished`.
    */
   abstract kill(id: JobId, caller?: SessionId, reason?: string): 'requested' | 'already-finished'
+
+  /**
+   * Write UTF-8 text to a live job's stdin. Throws for an unknown or foreign
+   * job, a job that already settled, or a producer that started no stdin; a
+   * producer-side write failure propagates.
+   * @param id - job to write to.
+   * @param text - the bytes to write, exactly as given.
+   * @param options - `close` ends the stream after this write.
+   * @param caller - writing session checked against the owner.
+   * @returns the number of UTF-8 bytes written.
+   */
+  abstract write(id: JobId, text: string, options?: { close?: boolean }, caller?: SessionId): number
 
   /**
    * Wait for settlement or timeout without cancelling the job. Caller abort

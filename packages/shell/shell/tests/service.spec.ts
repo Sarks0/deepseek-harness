@@ -20,6 +20,7 @@ class StubExecutor extends ShellExecutor {
       timeoutMs: request.timeoutMs ?? 1000,
       onExpiry: request.onExpiry ?? 'kill',
       stdoutMaxBytes: request.stdoutMaxBytes ?? 64_000,
+      liveStdin: request.liveStdin === true,
       ...request.signal ? { signal: request.signal } : {},
       sandboxPolicy: request.sandboxPolicy,
     }
@@ -57,7 +58,7 @@ describe('ShellExecutor service seam', () => {
     const ctx = new Context()
     await ctx.plugin(StubExecutor)
     const spec = ctx.shell.resolve({ command: 'echo hi' })
-    expect(spec).toEqual({ command: 'echo hi', workdir: '/stub', timeoutMs: 1000, onExpiry: 'kill', stdoutMaxBytes: 64_000, sandboxPolicy: undefined })
+    expect(spec).toEqual({ command: 'echo hi', workdir: '/stub', timeoutMs: 1000, onExpiry: 'kill', stdoutMaxBytes: 64_000, liveStdin: false, sandboxPolicy: undefined })
 
     // One execution, two views: the foreground result projection…
     const ex = (await ctx.shell.execute(spec))

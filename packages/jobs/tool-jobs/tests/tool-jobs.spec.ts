@@ -1686,3 +1686,63 @@ describe('released waits crossed by a settlement', () => {
     } finally { await ctx.fiber.dispose() }
   })
 })
+
+describe('job_input', () => {
+  it('writes text, reports the byte count, and never echoes the text', async () => {
+    const { ctx } = await setup()
+    const writes: { text: string; close: boolean }[] = []
+    ctx.jobs.start(producer({
+      input(text, options) {
+        writes.push({ text, close: options?.close === true })
+        return Buffer.byteLength(text, 'utf8')
+      },
+    }).spec)
+
+    const result = await call(ctx, 'job_input', { job_id: startedId(ctx, 'bash-1'), text: 'hunter2\n' })
+    if (result.isError) throw new Error('expected job_input success')
+    expect(result.value).toMatchObject({ written: 8, closed: false })
+    expect(text(result)).toBe(`wrote 8 bytes to stdin of job ${startedId(ctx, 'bash-1')}\n[status: running]`)
+    expect(text(result)).not.toContain('hunter2')
+    expect(writes).toEqual([{ text: 'hunter2\n', close: false }])
+  })
+
+  it('closes the stream when asked', async () => {
+    const { ctx } = await setup()
+    const writes: { text: string; close: boolean }[] = []
+    ctx.jobs.start(producer({
+      input(text, options) {
+        writes.push({ text, close: options?.close === true })
+        return 0
+      },
+    }).spec)
+
+    const result = await call(ctx, 'job_input', { job_id: startedId(ctx, 'bash-1'), text: '', close: true })
+    if (result.isError) throw new Error('expected job_input success')
+    expect(result.value).toMatchObject({ written: 0, closed: true })
+    expect(text(result)).toContain('and closed the stream')
+    expect(writes).toEqual([{ text: '', close: true }])
+  })
+
+  it('errors for a job with no stdin and for a finished job', async () => {
+    const { ctx } = await setup()
+    ctx.jobs.start(producer().spec)
+    const noStdin = await call(ctx, 'job_input', { job_id: startedId(ctx, 'bash-1'), text: 'x' })
+    expect(noStdin.isError).toBe(true)
+    expect(text(noStdin)).toContain('has no stdin to write to')
+
+    const p = producer({ input: () => 1 })
+    ctx.jobs.start(p.spec)
+    p.settle({ status: 'completed' })
+    await tick()
+    const finished = await call(ctx, 'job_input', { job_id: startedId(ctx, 'bash-2'), text: 'x' })
+    expect(finished.isError).toBe(true)
+    expect(text(finished)).toContain('already finished (completed)')
+  })
+
+  it('errors for an unknown job id', async () => {
+    const { ctx } = await setup()
+    const result = await call(ctx, 'job_input', { job_id: 'bash-99', text: 'x' })
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('unknown job bash-99')
+  })
+})

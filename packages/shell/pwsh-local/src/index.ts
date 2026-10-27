@@ -180,6 +180,7 @@ export class PwshLocalExecutor extends ShellExecutor {
       ...request.stdin !== undefined ? { stdin: request.stdin } : {},
       ...request.env !== undefined ? { env: request.env } : {},
       ...request.dshEnv !== undefined ? { dshEnv: request.dshEnv } : {},
+      liveStdin: request.liveStdin === true,
       sandboxPolicy: request.sandboxPolicy,
     }
   }

@@ -505,7 +505,9 @@ export function apply(ctx: Context, config: Config = {}): void {
           }
           // The caller owns cancellation until ctx.jobs commits detached ownership.
           if (exec.signal.aborted) throw toolAborted()
-          const spec = ctx.shell.resolve({ ...request, onExpiry: 'none' })
+          // Only an explicit background run opens a live stdin the model can
+          // later write through job_input; foreground stays stdin-less by design.
+          const spec = ctx.shell.resolve({ ...request, onExpiry: 'none', liveStdin: true })
           return { kind: 'background' as const, jobId: startJob(jobs, args, exec, spec).id, cwd: spec.workdir }
         }
         // A foreground call is a job the tool waits on, so the command is

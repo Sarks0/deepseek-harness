@@ -561,3 +561,35 @@ describe('execute() projections under none policy', () => {
     await expect(killed.result()).resolves.toMatchObject({ timedOut: false, aborted: true })
   })
 })
+
+describe('LocalBashExecutor live stdin', () => {
+  it('exposes writeInput for a liveStdin spawn and closes on demand', async () => {
+    const { bash } = await setup({ timeoutMs: 5_000 })
+    const proc = await start(bash, bash.resolve({ command: 'read line; echo "got:$line"; read last; echo "last:$last"', liveStdin: true }))
+    const writeInput = proc.writeInput
+    if (writeInput === undefined) throw new Error('expected writeInput')
+
+    expect(writeInput('hello\n')).toBe(6)
+    await readUntil(proc, 'got:hello')
+
+    expect(writeInput('', { close: true })).toBe(0)
+    await readUntil(proc, 'last:')
+    // With stdin closed, an empty final read leaves `last` empty.
+    await proc.done
+    expect(proc.exitCode).toBe(0)
+    expect(() => writeInput('late\n')).toThrow('no live stdin')
+  })
+
+  it('spawns without writeInput unless liveStdin is requested', async () => {
+    const { bash } = await setup({ timeoutMs: 5_000 })
+    const foreground = await start(bash, bash.resolve({ command: 'echo plain' }))
+    expect(foreground.writeInput).toBeUndefined()
+    await foreground.done
+  })
+
+  it('rejects a request naming both batch stdin and a live pipe', async () => {
+    const { bash } = await setup()
+    expect(() => bash.resolve({ command: 'cat', stdin: 'x', liveStdin: true }))
+      .toThrow('request.stdin and request.liveStdin are mutually exclusive')
+  })
+})
