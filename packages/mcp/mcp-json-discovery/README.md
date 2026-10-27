@@ -85,3 +85,16 @@ None directly; the mounted bridge owns any cache effect from its tool definition
 - **Explicit-row detection matches the exact module name** — a row naming the bridge through a re-export or alias specifier is invisible to precedence.
 - **Preset-scoped bridge rows are invisible** — an agent preset's own `dsh-mcp-client` rows register in that agent's scope and cannot conflict with these host-level registrations.
 - **A post-boot explicit row for a discovered name fails loudly** — the bridge's duplicate-`serverName` check rejects the later instance; remove the `.mcp.json` entry or reload without discovery to hand that name to an explicit row.
+
+<a id="dev-note"></a>
+### Dev Note
+
+<details>
+<summary>Working context for maintainers — click to expand</summary>
+
+This Dev Note is non-authoritative working context: open design questions and undecided directions. Shipped behavior, limits, and accepted rationale live in the sections above, the package code, and the linked Agent Notes.
+
+- Watching `.mcp.json` for live reload (a `domain/changed`-style re-discovery) is an open direction; boot-time discovery is the v1 contract.
+- Whether preset-scoped bridge rows should also count as "explicit" through a registry query (rather than loader entries alone) is undecided; the loader read is deterministic and covers every host-level row today.
+
+</details>

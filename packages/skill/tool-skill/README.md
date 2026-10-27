@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Agents can discover and load skills during a session. Before the first request, when model-invocable skills exist and the `skill` tool is visible, they receive a durable catalog of available skill names, capped descriptions, and capped `use when:` routing hints, and can use the `skill` tool to load full instructions. Users can invoke a user-invocable skill with `/name`, which injects the same instructions into that step, and a natural-language claim that matches a skill's trigger text receives a short reminder naming the match. Catalog changes append a complete replacement, including an empty catalog that retires old names; configure `catalogDescriptionMaxLength`, `catalogWhenToUseMaxLength`, `triggerInjection`, and `triggerInjectionMax` to shape the rendered lines and reminders.
+Agents can discover and load skills during a session. Before the first request, when model-invocable skills exist and the `skill` tool is visible, they receive a durable catalog of skill names, capped descriptions, and capped `use when:` routing hints, and can load full instructions with the `skill` tool. Users can invoke a user-invocable skill with `/name`, which injects the same instructions into that step; a natural-language claim matching a skill's trigger text gets a short reminder naming the match. Catalog changes append a complete replacement; configure `catalogDescriptionMaxLength`, `catalogWhenToUseMaxLength`, `triggerInjection`, and `triggerInjectionMax` to shape both.
 
 ## Table of Contents
 

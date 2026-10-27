@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-agent 可以在会话期间发现并加载 skill。在首次请求前，如果存在模型可调用 skill 且 `skill` 工具可见，agent 会收到一份持久目录，列出可用 skill 的名称、有长度上限的描述与有长度上限的 `use when:` 路由提示，并可用 `skill` 工具加载完整指令。用户可以用 `/name` 调用某个用户可调用的 skill，把相同的指令注入该步骤；与 skill 触发文本匹配的自然语言请求会收到一条点名匹配项的简短提醒。目录变更会追加一份完整替换，其中空目录会停用旧名称；可配置 `catalogDescriptionMaxLength`、`catalogWhenToUseMaxLength`、`triggerInjection` 与 `triggerInjectionMax` 来约束渲染行与提醒。
+agent 可以在会话期间发现并加载 skill。在首次请求前，如果存在模型可调用 skill 且 `skill` 工具可见，agent 会收到一份持久目录，列出 skill 名称、有上限的描述与有上限的 `use when:` 路由提示，并可用 `skill` 工具加载完整指令。用户可以用 `/name` 调用用户可调用的 skill，把相同指令注入该步骤；与 skill 触发文本匹配的自然语言请求会收到点名匹配项的简短提醒。目录变更会追加完整替换；可配置 `catalogDescriptionMaxLength`、`catalogWhenToUseMaxLength`、`triggerInjection` 与 `triggerInjectionMax` 来约束两者。
 
 ## 目录
 

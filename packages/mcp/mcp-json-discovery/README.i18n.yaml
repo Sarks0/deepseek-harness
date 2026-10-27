@@ -10,7 +10,7 @@
   zh: 807ce570b885deb7
 /deepseek-ai-dsh-mcp-json-discovery/summary:
   en: a749bc9701635771
-  zh: 45e4ce1712e08fe0
+  zh: 44bbd7734bf39b7d
 /deepseek-ai-dsh-mcp-json-discovery/table-of-contents:
   en: b563e4ec4727d0de
   zh: 0b283b30acc898ed
@@ -37,7 +37,10 @@
   zh: f4e7239b4d34fdc1
 /deepseek-ai-dsh-mcp-json-discovery/model-experience/kv-cache-effect:
   en: 44305f529c5799cc
-  zh: d577c9b8a91c47a7
+  zh: 1f25032a90b7f2e5
 /deepseek-ai-dsh-mcp-json-discovery/known-limitations-and-deferred-work:
-  en: 936969a5e128262d
-  zh: b23e28141f1a1949
+  en: 2546f8743526af92
+  zh: 55f5317d08240b3d
+/deepseek-ai-dsh-mcp-json-discovery/known-limitations-and-deferred-work/dev-note:
+  en: c58dbcf3967fd500
+  zh: 4bc52fee25434c20
