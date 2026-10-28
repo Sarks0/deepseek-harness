@@ -9,7 +9,7 @@ import type {} from '@deepseek-ai/dsh-system-prompt'
 import {
   auditStartupEntries, boot, StartupError,
   FAIL_LOUD_RELEASE_TIMEOUT_MS,
-  installFailLoud, loadEnv, loadLayeredEnv, loadOverlayPatches, resolveConfigPath, type FailLoudEvent, type FailLoudProcess,
+  installConsoleLogSink, installFailLoud, loadEnv, loadLayeredEnv, loadOverlayPatches, resolveConfigPath, type FailLoudEvent, type FailLoudProcess,
 } from '../src/index.ts'
 
 const NAME = 'dsh-test-bin'
@@ -1317,4 +1317,44 @@ describe('boot', () => {
     }
   })
 
+})
+
+describe('installConsoleLogSink', () => {
+  /** The stderr lines the sink wrote while `run` drove the logger. */
+  function logged(infoEnabled: boolean, run: (logger: Context['logger']) => void): string[] {
+    const ctx = new Context()
+    installConsoleLogSink(ctx.logger, infoEnabled)
+    const write = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    try {
+      run(ctx.logger)
+      return write.mock.calls.map(call => String(call[0]))
+    } finally {
+      write.mockRestore()
+    }
+  }
+
+  it('always prints warn and error lines to stderr', () => {
+    const lines = logged(false, logger => {
+      logger.warn('skipped provider %s', 'acme')
+      logger.error('boom %d', 7)
+    })
+    expect(lines.join('')).toContain('skipped provider acme')
+    expect(lines.join('')).toContain('boom 7')
+  })
+
+  it('keeps info lines silent while the DSH_LOG_LEVEL=info gate is unset', () => {
+    const lines = logged(false, logger => {
+      logger.info('excluded server "noisy" by configuration')
+      logger.warn('visible')
+    })
+    expect(lines.join('')).not.toContain('excluded server')
+    expect(lines.join('')).toContain('visible')
+  })
+
+  it('prints info lines once DSH_LOG_LEVEL=info opens the gate', () => {
+    const lines = logged(true, logger => {
+      logger.info('covered server "kb-mcp" from .mcp.json')
+    })
+    expect(lines.join('')).toContain('covered server "kb-mcp" from .mcp.json')
+  })
 })

@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs'
 import { inspect, parseEnv } from 'node:util'
 import { basename, dirname, isAbsolute, resolve } from 'node:path'
 import * as yaml from 'js-yaml'
-import { Context, type Fiber, type FiberState } from '@deepseek-ai/cordis'
+import { Context, Logger, type Exporter, type Fiber, type FiberState, type LoggerService } from '@deepseek-ai/cordis'
 import Loader, { type Entry, type EntryGroup, type EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import Include, { applyEntryPatches, entryListSchema, type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import Group from '@deepseek-ai/cordis-plugin-group'
@@ -1166,6 +1166,34 @@ export async function auditStartupEntries(
 }
 
 /**
+ * The console log sink every profile boots with: the tree's `warn` and `error`
+ * lines always reach stderr, and `info` lines join them only when
+ * `DSH_LOG_LEVEL=info` is exported. Without it cordis's `LoggerService` only
+ * fills its unread ring buffer, so a plugin that logs a skip (mcp-json
+ * discovery, the skill registry) looked identical to one that found nothing.
+ * The startup-failure report is unaffected: the audit summary prints once and
+ * the raw records stay in the saved diagnostics file.
+ * @param logger - the logger service to attach the exporter to.
+ * @param infoEnabled - whether the `DSH_LOG_LEVEL=info` gate admitted `info` lines.
+ */
+export function installConsoleLogSink(logger: LoggerService, infoEnabled: boolean): void {
+  const exporter: Exporter = {
+    colors: false,
+    // cordis compares `exporter.levels ?? logger.level ?? INFO` against the
+    // message level and drops anything higher; its scale counts UP with
+    // verbosity (ERROR 0, INFO 1, WARN 2, DEBUG 3). An exporter without a
+    // level therefore admits errors and info but silently drops every
+    // warning, which is what the built-in ring-buffer exporter does.
+    levels: { default: 2 },
+    export: (message) => {
+      if (message.type === 'info' && !infoEnabled) return
+      process.stderr.write(`${message.name}: ${Logger.format(exporter, message)}\n`)
+    },
+  }
+  logger.exporter(exporter)
+}
+
+/**
  * Boot the Loader against `absoluteConfigPath` and return only after the whole
  * tree settles. Relative entry names resolve against the config directory;
  * bare package names resolve there by default or against an explicit
@@ -1214,6 +1242,10 @@ export async function boot(
       if (type === 'warn' || type === 'error') startupLogs.push({ ts, name, type, args })
     },
   })
+  // The sink rides the root fiber, so it outlives the startup audit and keeps
+  // surfacing plugin logs for the tree's whole lifetime; the collector above
+  // is released with the diagnostics fiber once boot settles.
+  installConsoleLogSink(ctx.logger, process.env.DSH_LOG_LEVEL === 'info')
   // Two failure labels: `prepare` runs before any config-tree entry mounts,
   // so its failure is host setup, not the plugin tree.
   let stage = 'host preparation failed'
