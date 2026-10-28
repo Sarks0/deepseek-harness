@@ -50,7 +50,7 @@ kind: "package-reference"
   name: '@deepseek-ai/dsh-sandbox-policy'
   config:
     mode: read-only
-    workspaceRoot: !!js process.cwd() # fallback for calls without a session cwd
+    workspaceRoot: !!js launchCwd() # fallback for calls without a session cwd (the launch directory: INIT_CWD ?? process.cwd())
 - id: bash
   name: '@deepseek-ai/dsh-pwsh-sandbox'
 ```

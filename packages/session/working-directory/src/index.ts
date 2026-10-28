@@ -6,6 +6,7 @@
 import { isAbsolute } from 'node:path'
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { launchCwd } from '@deepseek-ai/dsh-launch-environment'
 import { z as zod } from 'zod'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-fs'
@@ -71,7 +72,7 @@ export class WorkingDirectoryService extends Service {
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'workingDirectory')
-    const directory = config.defaultDirectory ?? process.cwd()
+    const directory = config.defaultDirectory ?? launchCwd()
     if (!isAbsolute(directory)) throw new Error('working-directory: defaultDirectory must be absolute')
     this.defaultDirectory = directory
   }

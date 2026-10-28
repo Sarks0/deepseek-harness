@@ -16,7 +16,7 @@ import Loader, { type Entry, type EntryGroup, type EntryOptions } from '@deepsee
 import Include, { applyEntryPatches, entryListSchema, type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import Group from '@deepseek-ai/cordis-plugin-group'
 import { dshHomePath, resolveDshHome } from '@deepseek-ai/dsh-home-paths'
-import { createLaunchEnvironmentSnapshot, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
+import { createLaunchEnvironmentSnapshot, launchCwd, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
 export { readBundlePatches, readProfilePatches, resolveTelemetryPatch, type ProfileContext, type ProfilePnpmInvocation } from './profile-context.ts'
 export { sanitizeProfile } from './profile-sanitize.ts'
 export { getDshRuntimeVersion, evaluatePluginCompatibility, pluginCompatibilityWarning, type PluginCompatibility } from './plugin-compatibility.ts'
@@ -42,6 +42,8 @@ declare module '@deepseek-ai/cordis' {
   interface Context {
     /** Harness-home path resolver available to Loader `!!js` config expressions. */
     dshHomePath?: typeof dshHomePath
+    /** Launch-directory resolver available to Loader `!!js` config expressions. */
+    launchCwd?: typeof launchCwd
   }
 
   interface Events {
@@ -225,13 +227,13 @@ function readEnvLayer(
  * are checked before either is applied, and accepted values are materialized
  * without replacing inherited ones. The snapshot preserves which layer supplied each value.
  * @param binName - the diagnostic prefix on the diagnostics.
- * @param cwd - the invoking directory whose `.env` is the project layer.
+ * @param cwd - the invoking directory whose `.env` is the project layer; defaults to the launch directory ({@link launchCwd}), so a package-manager launch reads the caller's `.env` rather than the package root's.
  * @param warn - sink for the one-line misconfiguration diagnostics.
  * @returns this run's frozen environment snapshot.
  * @throws when either file declares a bootstrap-only variable, except {@link HOME_LAYER_PROXY_NAMES} in the Harness-home file.
  */
 export function loadLayeredEnv(
-  binName: string, cwd: string = process.cwd(),
+  binName: string, cwd: string = launchCwd(),
   warn: (line: string) => void = line => void process.stderr.write(line),
 ): LaunchEnvironmentSnapshot {
   const home = resolveDshHome()
@@ -1218,6 +1220,7 @@ export async function boot(
   try {
     ctx.baseUrl = pathToFileURL(dirname(absoluteConfigPath)).href + '/'
     ctx.provide('dshHomePath', dshHomePath)
+    ctx.provide('launchCwd', launchCwd)
     // Fiber.update() discards the restart promise. Observe it before the
     // waterfall returns; activation audits still report the failed fiber.
     ctx.on('internal/update', (_config, _noSave, next: () => unknown) => {

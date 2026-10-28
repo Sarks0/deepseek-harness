@@ -43,7 +43,7 @@ kind: "package-reference"
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
-| `cwd` | `process.cwd()` | 相对路径的基准目录 |
+| `cwd` | 启动目录（`INIT_CWD ?? process.cwd()`） | 相对路径的基准目录 |
 | `diffBasisMaxBytes` | `10 MiB` | 每次覆写 diff 一侧的 UTF-8 字节上限；更大的覆写返回 `before: null` |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-fs-local)完整列出了所有受支持字段及其 JSDoc。

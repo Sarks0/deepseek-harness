@@ -35,7 +35,7 @@ kind: "package-reference"
 | 字段 | 默认值 | 含义 |
 |---|---|---|
 | `enabled` | `true` | 不移除行即可关闭发现 |
-| `path` | `.mcp.json` | 文档路径；相对路径相对 harness 启动目录解析 |
+| `path` | `.mcp.json` | 文档路径；相对路径相对 harness 启动目录解析（`INIT_CWD ?? process.cwd()`） |
 | `excludeServers` | `[]` | picomatch 模式（如 `vr-*`），命名不注册的服务器 |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-mcp-json-discovery)是每个接受字段的详尽来源。

@@ -244,7 +244,7 @@
       name: '@deepseek-ai/dsh-sandbox-policy'
       config:
         mode: !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'
-        workspaceRoot: !!js process.cwd()
+        workspaceRoot: !!js launchCwd()
 
     - id: bash-sandbox
       name: '@deepseek-ai/dsh-bash-sandbox'
@@ -531,8 +531,9 @@
       config:
         agents: []
 
-    # The sandboxed filesystem provider. `cwd` defaults to `process.cwd()`; an
-    # overlay can pin another workspace.
+    # The sandboxed filesystem provider. `cwd` defaults to the launch directory
+    # (`INIT_CWD` when a package manager launched the bin); an overlay can pin
+    # another workspace.
     - id: fs-sandbox
       name: '@deepseek-ai/dsh-fs-sandbox'
 

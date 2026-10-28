@@ -37,6 +37,7 @@
     "@deepseek-ai/dsh-session-projection": "workspace:*"
   },
   "dependencies": {
+    "@deepseek-ai/dsh-launch-environment": "workspace:*",
     "@deepseek-ai/schemastery": "workspace:~",
     "zod": "4.4.3"
   },

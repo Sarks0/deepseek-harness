@@ -19,6 +19,9 @@
     },
     {
       "path": "../mcp-client"
+    },
+    {
+      "path": "../../util/launch-environment"
     }
   ]
 }

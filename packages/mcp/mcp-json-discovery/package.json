@@ -38,6 +38,7 @@
     "@types/picomatch": "^4.0.3"
   },
   "dependencies": {
+    "@deepseek-ai/dsh-launch-environment": "workspace:*",
     "@deepseek-ai/schemastery": "workspace:~",
     "picomatch": "^4.0.7"
   }

@@ -1468,12 +1468,12 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-fs-local`
 
-- `source`: [`packages/fs/fs-local/src/index.ts:46`](../packages/fs/fs-local/src/index.ts)
+- `source`: [`packages/fs/fs-local/src/index.ts:47`](../packages/fs/fs-local/src/index.ts)
 
 ```ts config-catalog
 /** Configuration for the local filesystem backend. */
 export interface Config {
-  /** Base directory for relative paths. Defaults to `process.cwd()`. */
+  /** Base directory for relative paths. Defaults to the launch directory (`INIT_CWD ?? process.cwd()`). */
   cwd?: string
   /**
    * Exclusive UTF-8 byte limit on each overwrite-diff side, capped by the
@@ -1528,7 +1528,7 @@ export interface Config {
 
 - `inject`: `agentDefaultModel` · `agents` · `sessions`
 - `refs`: [`ApprovalPolicy`](subsystems/approval.zh.md)
-- `source`: [`packages/bundle/headless/src/index.ts:48`](../packages/bundle/headless/src/index.ts)
+- `source`: [`packages/bundle/headless/src/index.ts:49`](../packages/bundle/headless/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: the task and run options resolved from this app's injected provider service. */
@@ -2353,7 +2353,7 @@ export interface ReconnectConfig {
 
 ## `@deepseek-ai/dsh-mcp-json-discovery`
 
-- `source`: [`packages/mcp/mcp-json-discovery/src/index.ts:31`](../packages/mcp/mcp-json-discovery/src/index.ts)
+- `source`: [`packages/mcp/mcp-json-discovery/src/index.ts:32`](../packages/mcp/mcp-json-discovery/src/index.ts)
 
 ```ts config-catalog
 /** Discovery configuration. */
@@ -2362,8 +2362,9 @@ export interface Config {
   enabled?: boolean
   /**
    * Path of the discovery document. Relative paths resolve against the
-   * harness launch directory (the deployment workspace), the same root the
-   * base bundle's sandbox policy uses.
+   * harness launch directory (the deployment workspace — the caller's
+   * directory for package-manager launches, `INIT_CWD ?? process.cwd()`),
+   * the same root the base bundle's sandbox policy uses.
    */
   path?: string
   /** Picomatch patterns naming servers to leave unregistered; empty keeps all. */
@@ -2817,7 +2818,7 @@ export interface Config {
 
 - `inject`: `sessionProjections`
 - `refs`: [`SandboxMode`](subsystems/sandbox.zh.md)
-- `source`: [`packages/sandbox/sandbox-policy/src/index.ts:94`](../packages/sandbox/sandbox-policy/src/index.ts)
+- `source`: [`packages/sandbox/sandbox-policy/src/index.ts:95`](../packages/sandbox/sandbox-policy/src/index.ts)
 
 ```ts config-catalog
 /**
@@ -2832,7 +2833,8 @@ export interface Config {
   mode?: SandboxMode
   /**
    * Absolute fallback root for agentless calls and sessions without a cwd (default:
-   * `process.cwd()`). Normal agent calls use their session cwd instead.
+   * the launch directory, `INIT_CWD ?? process.cwd()`). Normal agent calls use their
+   * session cwd instead.
    */
   workspaceRoot?: string
   /**
@@ -4704,7 +4706,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-working-directory`
 
 - `inject`: `fs` · `sessionProjections` · `systemPrompt`
-- `source`: [`packages/session/working-directory/src/index.ts:51`](../packages/session/working-directory/src/index.ts)
+- `source`: [`packages/session/working-directory/src/index.ts:52`](../packages/session/working-directory/src/index.ts)
 
 ```ts config-catalog
 /** Deployment default for Sessions without an original project directory. */

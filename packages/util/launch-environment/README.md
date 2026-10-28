@@ -39,6 +39,16 @@ const endpoint = launchEnvironmentOf(ctx).get('DEEPSEEK_BASE_URL')?.value
 
 `launchedThroughSsh(snapshot)` returns true only for a non-empty `SSH_CONNECTION` or `SSH_TTY` in the inherited process layer. Web browser handoff, the adaptive directory picker, and Open In share this predicate; project and user `.env` values never establish an SSH session.
 
+### Resolving the launch directory
+
+```ts
+import { launchCwd } from '@deepseek-ai/dsh-launch-environment'
+
+const workspaceRoot = launchCwd()
+```
+
+`launchCwd()` returns the caller's working directory when a package manager launched this process, and the process cwd otherwise. `npm`, `pnpm`, and `yarn` chdir into the package root before invoking a bin and record the caller's directory in `INIT_CWD`, so every workspace-root default and relative project-file resolution that uses this helper keeps pointing at the workspace the user launched from. A direct launch has no `INIT_CWD`, so its cwd already is the caller's and nothing changes. app-boot provides `launchCwd` to Loader `!!js` config expressions, and `loadLayeredEnv` reads the invocation directory's `.env` layer from it.
+
 ### How layers rank
 
 | Layer | What it is |

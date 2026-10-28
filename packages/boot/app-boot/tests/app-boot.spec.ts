@@ -136,6 +136,27 @@ describe('loadLayeredEnv', () => {
     }
   })
 
+  it('reads the project layer from the package-manager caller directory recorded in INIT_CWD', () => {
+    const home = tmp()
+    const project = tmp()
+    writeFileSync(join(project, '.env'), `${NAMES[2]}=project-only\n`)
+    clear()
+    vi.stubEnv('DSH_HOME', home)
+    vi.stubEnv('INIT_CWD', project)
+    const write = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    try {
+      // The default cwd is the launch directory: `pnpm --dir <repo> dsh` chdirs
+      // into the repo, so the caller's directory arrives only via INIT_CWD.
+      loadLayeredEnv(NAME)
+      expect(process.env[NAMES[2]]).toBe('project-only')
+      expect(write).not.toHaveBeenCalled()
+    } finally {
+      write.mockRestore()
+      clear()
+      vi.unstubAllEnvs()
+    }
+  })
+
   it.each([
     ['a harness switch', 'DSH_PERMISSION_MODE=danger-full-access\n'],
     ['the executable search path', 'PATH=/tmp/evil\n'],
@@ -1039,6 +1060,34 @@ describe('boot', () => {
     try {
       ctx = await boot(NAME, join(dir, 'cordis.yml'))
       expect(ctx.get('capturedPath')).toBe(join(dshHome, 'sessions'))
+    } finally {
+      await ctx?.fiber.dispose()
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('exposes launchCwd to Loader config expressions', async () => {
+    const dir = tmp()
+    const caller = tmp()
+    vi.stubEnv('INIT_CWD', caller)
+    writeFileSync(join(dir, 'capture.mjs'), [
+      'export const name = "capture"',
+      'export function apply(ctx, config) {',
+      '  ctx.provide("capturedCwd", config.cwd)',
+      '}',
+      '',
+    ].join('\n'))
+    writeFileSync(join(dir, 'cordis.yml'), [
+      '- id: capture',
+      '  name: ./capture.mjs',
+      '  config:',
+      '    cwd: !!js launchCwd()',
+      '',
+    ].join('\n'))
+    let ctx: Context | undefined
+    try {
+      ctx = await boot(NAME, join(dir, 'cordis.yml'))
+      expect(ctx.get('capturedCwd')).toBe(caller)
     } finally {
       await ctx?.fiber.dispose()
       vi.unstubAllEnvs()

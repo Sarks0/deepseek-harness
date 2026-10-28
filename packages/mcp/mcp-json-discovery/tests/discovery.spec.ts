@@ -174,6 +174,24 @@ describe('mcp-json-discovery apply', () => {
     expect(mountedConfigs()).toEqual([])
   })
 
+  it('resolves the default document path against the package-manager caller directory recorded in INIT_CWD', async () => {
+    // `pnpm --dir <repo> dsh` chdirs into the repo; the caller's directory
+    // survives only as INIT_CWD, and the default `.mcp.json` belongs there.
+    const dir = await tempDir('mcp-json-init-cwd')
+    await writeFile(join(dir, '.mcp.json'), '{"mcpServers": {"a": {"command": "x"}}}')
+    vi.stubEnv('INIT_CWD', dir)
+    await setup()
+    expect(mountedConfigs()).toEqual([expect.objectContaining({ serverName: 'a' })])
+  })
+
+  it('resolves a relative document path against the launch directory', async () => {
+    const dir = await tempDir('mcp-json-relative')
+    await writeFile(join(dir, 'project.mcp.json'), '{"mcpServers": {"a": {"command": "x"}}}')
+    vi.stubEnv('INIT_CWD', dir)
+    await setup({ path: 'project.mcp.json' })
+    expect(mountedConfigs()).toEqual([expect.objectContaining({ serverName: 'a' })])
+  })
+
   it('mounts discovered stdio and http servers through the bridge', async () => {
     vi.stubEnv('MCP_TOKEN', 'secret-token')
     const dir = await tempDir('mcp-json-mount')

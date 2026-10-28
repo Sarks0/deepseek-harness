@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import {
-  createLaunchEnvironmentSnapshot, DSH_LAUNCH_ENVIRONMENT_KEY, launchedThroughSsh, launchEnvironmentOf,
+  createLaunchEnvironmentSnapshot, DSH_LAUNCH_ENVIRONMENT_KEY, launchCwd, launchedThroughSsh, launchEnvironmentOf,
 } from '../src/index.ts'
 
 const layered = createLaunchEnvironmentSnapshot([
@@ -82,6 +82,27 @@ describe('launchEnvironmentOf', () => {
       expect(snapshot.get('DSH_ENV_SPEC_FALLBACK')).toEqual({ value: 'ambient', source: 'process' })
     } finally {
       vi.unstubAllEnvs()
+    }
+  })
+})
+
+describe('launchCwd', () => {
+  it('resolves the package-manager caller directory recorded in INIT_CWD', () => {
+    vi.stubEnv('INIT_CWD', '/caller/workspace')
+    try {
+      expect(launchCwd()).toBe('/caller/workspace')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('falls back to the process cwd when no package manager set INIT_CWD', () => {
+    const previous = process.env.INIT_CWD
+    delete process.env.INIT_CWD
+    try {
+      expect(launchCwd()).toBe(process.cwd())
+    } finally {
+      if (previous !== undefined) process.env.INIT_CWD = previous
     }
   })
 })

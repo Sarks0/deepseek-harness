@@ -35,7 +35,7 @@ Mount this plugin beside the MCP client bridge when a project keeps its MCP serv
 | Field | Default | Meaning |
 |---|---|---|
 | `enabled` | `true` | Turn discovery off without removing the row |
-| `path` | `.mcp.json` | Document path; relative paths resolve against the harness launch directory |
+| `path` | `.mcp.json` | Document path; relative paths resolve against the harness launch directory (`INIT_CWD ?? process.cwd()`) |
 | `excludeServers` | `[]` | Picomatch patterns (e.g. `vr-*`) naming servers to leave unregistered |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-mcp-json-discovery) is the exhaustive source for every accepted field.

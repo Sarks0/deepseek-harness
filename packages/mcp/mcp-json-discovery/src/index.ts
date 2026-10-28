@@ -14,6 +14,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import picomatch from 'picomatch'
 import * as mcpClient from '@deepseek-ai/dsh-mcp-client'
+import { launchCwd } from '@deepseek-ai/dsh-launch-environment'
 import { parseMcpJson, type DiscoveredServer } from './parse.ts'
 
 export { parseMcpJson } from './parse.ts'
@@ -33,8 +34,9 @@ export interface Config {
   enabled?: boolean
   /**
    * Path of the discovery document. Relative paths resolve against the
-   * harness launch directory (the deployment workspace), the same root the
-   * base bundle's sandbox policy uses.
+   * harness launch directory (the deployment workspace — the caller's
+   * directory for package-manager launches, `INIT_CWD ?? process.cwd()`),
+   * the same root the base bundle's sandbox policy uses.
    */
   path?: string
   /** Picomatch patterns naming servers to leave unregistered; empty keeps all. */
@@ -116,7 +118,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   if (config.enabled === false) return
   const documentPath = isAbsolute(config.path ?? '.mcp.json')
     ? (config.path ?? '.mcp.json')
-    : resolve(process.cwd(), config.path ?? '.mcp.json')
+    : resolve(launchCwd(), config.path ?? '.mcp.json')
 
   let text: string
   try {

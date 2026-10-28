@@ -11,6 +11,7 @@ import { watch } from 'chokidar'
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import z from '@deepseek-ai/schemastery'
+import { launchCwd } from '@deepseek-ai/dsh-launch-environment'
 import { FileSystem, FsError, FsVersion } from '@deepseek-ai/dsh-fs'
 import type {
   FsDirEntry,
@@ -44,7 +45,7 @@ import type { FsIoInternals } from './fsio.ts'
 
 /** Configuration for the local filesystem backend. */
 export interface Config {
-  /** Base directory for relative paths. Defaults to `process.cwd()`. */
+  /** Base directory for relative paths. Defaults to the launch directory (`INIT_CWD ?? process.cwd()`). */
   cwd?: string
   /**
    * Exclusive UTF-8 byte limit on each overwrite-diff side, capped by the
@@ -91,7 +92,10 @@ export class LocalFileSystem extends FileSystem {
   }
 
   static Config: z<Config> = z.object({
-    cwd: z.string().default(process.cwd()),
+    // No schema default: the launch cwd is resolved in the constructor so the
+    // fallback to the caller's directory stays real branching, like the
+    // sandbox policy's workspace root.
+    cwd: z.string(),
     diffBasisMaxBytes: z.number().default(DEFAULT_DIFF_BASIS_MAX_BYTES),
   })
 
@@ -106,7 +110,10 @@ export class LocalFileSystem extends FileSystem {
 
   constructor(ctx: Context, config: Config) {
     super(ctx)
-    const resolved = config as ResolvedConfig
+    // The cwd resolution default (NOT a containment boundary) follows the
+    // launch directory, so a package-manager launch keeps the caller's
+    // workspace instead of the package root the PM chdir'd into.
+    const resolved = { ...config, cwd: config.cwd ?? launchCwd() } as ResolvedConfig
     if (!Number.isSafeInteger(resolved.diffBasisMaxBytes)
       || resolved.diffBasisMaxBytes <= 0
       || resolved.diffBasisMaxBytes > MAX_DIFF_BASIS_BYTES) {

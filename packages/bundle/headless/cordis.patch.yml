@@ -29,7 +29,7 @@
   inject: [headlessStartup]
   config:
     mode: !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'
-    workspaceRoot: !!js process.cwd()
+    workspaceRoot: !!js launchCwd()
     additionalWritableRoots: !!js ctx.headlessStartup.additionalWritableRoots
 
 - id: hmr

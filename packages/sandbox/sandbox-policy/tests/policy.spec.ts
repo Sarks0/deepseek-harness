@@ -7,7 +7,7 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session'
@@ -47,6 +47,18 @@ describe('SandboxPolicyService', () => {
     const ctx = await mounted()
     expect(ctx.sandboxPolicy.defaultMode).toBe('read-only')
     expect(ctx.sandboxPolicy.workspaceRoot).toBe(resolve(process.cwd()))
+  })
+
+  it('defaults the workspace root to the package-manager caller directory recorded in INIT_CWD', async () => {
+    // A `pnpm --dir <repo>` launch chdirs into the repo; the deployment
+    // workspace the policy falls back to is the caller's directory.
+    vi.stubEnv('INIT_CWD', '/caller/workspace')
+    try {
+      const ctx = await mounted()
+      expect(ctx.sandboxPolicy.workspaceRoot).toBe('/caller/workspace')
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('preserves an absolute execution-world root without host path normalization', async () => {
