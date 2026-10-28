@@ -162,6 +162,15 @@ export interface JobHooks {
    */
   cancel(reason?: string): void
   /**
+   * Write UTF-8 text to the job's live stdin, when the producer started one.
+   * Optional: producers without an interactive stdin simply omit it, and the
+   * registry's {@link JobRegistry.write} then reports that the job has none.
+   * @param text - the bytes to write, exactly as given.
+   * @param options - `close` ends the stream after this write.
+   * @returns the number of UTF-8 bytes written.
+   */
+  input?(text: string, options?: { close?: boolean }): number
+  /**
    * Resolves after the producer releases its resources, not merely when work
    * finishes. Must not reject; the runtime converts a rejection to `failed`.
    * If teardown cancellation throws, the runtime may force-fail only the

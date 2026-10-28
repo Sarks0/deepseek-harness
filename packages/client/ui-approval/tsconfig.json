@@ -18,6 +18,9 @@
       "path": "../../api/session-controller/tsconfig.client.json"
     },
     {
+      "path": "../../interaction/user-approval"
+    },
+    {
       "path": "../../llm/llm"
     },
     {
@@ -25,6 +28,9 @@
     },
     {
       "path": "../locale/tsconfig.client.json"
+    },
+    {
+      "path": "../shortcuts/tsconfig.client.json"
     },
     {
       "path": "../ui-conversation/tsconfig.client.json"
@@ -40,9 +46,6 @@
     },
     {
       "path": "../ui-slots"
-    },
-    {
-      "path": "../shortcuts/tsconfig.client.json"
     }
   ]
 }

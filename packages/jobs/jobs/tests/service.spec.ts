@@ -18,6 +18,8 @@ class StubJobRegistry extends JobRegistry {
   readonly subscriptions: { filter: JobEventFilter; listener: JobEventListener }[] = []
   readonly started: JobSpec[] = []
 
+  write(): never { throw new Error('not scripted') }
+
   readonly events = {
     subscribe: (filter: JobEventFilter, listener: JobEventListener): (() => void) => {
       const entry = { filter, listener }

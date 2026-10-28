@@ -1018,6 +1018,20 @@ describe('sandbox escalation API (write/edit)', () => {
     }])
   })
 
+  it('escalation requests carry the resolved target path as their remember subject', async () => {
+    const { ctx } = await setupConfining({ approval: true })
+    const seen: { paths?: unknown }[] = []
+    ctx.on('approval/request', async (req) => {
+      seen.push({ paths: (req.subject as { paths?: unknown } | undefined)?.paths })
+      return 'allowed-once' as const
+    })
+    const result = await call(ctx, 'write', {
+      file_path: 'notes/report.md', content: 'x', sandbox_permissions: 'danger-full-access', justification: 'the test needs it',
+    }, escalationAgent())
+    expect(result.isError, text(result)).toBe(false)
+    expect(seen).toEqual([{ paths: [expect.stringContaining('notes/report.md')] }])
+  })
+
   it.each(['workspace-write', 'danger-full-access'] as const)('writes under repeated %s without approval', async (mode) => {
     const { ctx, fs } = await setupConfining()
     const result = await call(ctx, 'write', {

@@ -127,6 +127,9 @@ export class LocalBashExecutor extends ShellExecutor {
     )
     const stdoutMaxBytes = request.stdoutMaxBytes ?? this.config.maxOutputBytes.get()
     assertPositiveFinite('request.stdoutMaxBytes', stdoutMaxBytes)
+    if (request.liveStdin === true && request.stdin !== undefined) {
+      throw new Error('bash-local: request.stdin and request.liveStdin are mutually exclusive')
+    }
     return {
       command: request.command,
       workdir: request.workdir ?? this.config.cwd.get() ?? process.cwd(),
@@ -139,6 +142,8 @@ export class LocalBashExecutor extends ShellExecutor {
       ...request.stdin !== undefined ? { stdin: request.stdin } : {},
       ...request.env !== undefined ? { env: request.env } : {},
       ...request.dshEnv !== undefined ? { dshEnv: request.dshEnv } : {},
+      // A live pipe and batch bytes are mutually exclusive stdin dispositions.
+      liveStdin: request.liveStdin === true,
       // Carry a sandbox policy through verbatim: this executor never
       // confines, so the field is inert here (the seam contract) — a
       // sandboxing subclass overrides resolve() to stamp its default instead.
@@ -160,7 +165,7 @@ export class LocalBashExecutor extends ShellExecutor {
       argv,
       cwd: spec.workdir,
       stdio: {
-        stdin: spec.stdin !== undefined ? { data: spec.stdin } : 'ignore',
+        stdin: spec.stdin !== undefined ? { data: spec.stdin } : spec.liveStdin ? 'pipe' : 'ignore',
         stdout: collect(stdoutMaxBytes),
         stderr: collect(this.config.maxOutputBytes.get()),
       },
@@ -383,6 +388,19 @@ export class LocalBashExecutor extends ShellExecutor {
         })
         return resultPromise
       },
+    }
+    // A live-stdin spawn exposes the pipe through the handle; anything else
+    // keeps the closed-stdin contract and no writeInput member at all.
+    if (spec.liveStdin && spec.stdin === undefined) {
+      proc.writeInput = (text: string, options?: { close?: boolean }): number => {
+        const stdin = running?.stdin
+        if (proc.status !== 'running' || stdin === undefined || stdin.destroyed) {
+          throw new Error('bash-local: the process has no live stdin to write to')
+        }
+        if (text.length > 0) stdin.write(text)
+        if (options?.close === true) stdin.end()
+        return Buffer.byteLength(text, 'utf8')
+      }
     }
     if (!preparationTimedOut) onStarted?.(proc)
     return proc

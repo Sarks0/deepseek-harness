@@ -1,5 +1,5 @@
 ---
-description: "面向模型的后台任务控制，供选择、配置或排查 job_output、job_list、job_kill 与完成通知的用户与维护者阅读。"
+description: "面向模型的后台任务控制，供选择、配置或排查 job_input、job_output、job_list、job_kill 与完成通知的用户与维护者阅读。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-使用 `dsh-tool-jobs`，可通过 `job_output`、`job_list` 与 `job_kill` 检查和控制后台命令、PTY 工作与 subagent。读取可在配置的超时内等待，而等待会因用户 steer 提前结束；列表结果标识各任务的 kind 与状态，而取消只有在工作停止后才结算。归属明确的工作完成时，agent（智能体）会收到携带简短输出的会话内通知：繁忙的 agent 在下一步收到，空闲的 agent 则由 follow-up 轮次唤醒。配置控制等待上限、完成投递与可选的连续唤醒上限。流输出只有一个读取方，待领通知无法在所有者释放后存活。
+使用 `dsh-tool-jobs`，可通过 `job_output`、`job_list`、`job_kill` 与 `job_input` 检查和控制后台命令、PTY 工作与 subagent。读取可在配置的超时内等待，而等待会因用户 steer 提前结束；列表结果标识各任务的 kind 与状态，而取消只有在工作停止后才结算。归属明确的工作完成时，agent（智能体）会收到携带简短输出的会话内通知：繁忙的 agent 在下一步收到，空闲的 agent 则由 follow-up 轮次唤醒。配置控制等待上限、完成投递与可选的连续唤醒上限。流输出只有一个读取方，待领通知无法在所有者释放后存活。
 
 ## 目录
 
@@ -32,6 +32,7 @@ kind: "package-reference"
 - `job_output(job_id, wait?, timeout_ms?)`——读取任务输出。流任务只返回自上次读取以来的输出；最终输出任务在结算后返回其结果。每个响应都以 `[status: ...]` 结尾。除非 `wait: true`，否则读取是非阻塞的。等待会在三种情况下结束：结算、到达配置的超时，或当前步骤有用户撰写的消息排队（chat steer）；排队到后续轮次的输入不会结束等待，插件通知与注入的上下文也不会结束等待，它们留到下一步投递。steer 与超时都返回任务的当前状态、让任务保持运行，且都不会取消其生产方，因此之后的读取仍能收走完成结果；被打断的等待会在状态行写明原因（`[status: running, user steered]`）。一次读取先渲染 stdout，再把 stderr 放进一段 `[stderr]`，标注读取前已离开内存的输出，并在结算后的第一次读取恰好携带一次任务的结果（subagent 的回答）。
 - `job_list()`——列出你的后台任务及其 id、kind 与状态，每行一个：`<id> [<kind>] <status> — <label>`。
 - `job_kill(job_id, reason?)`——立即请求取消运行中的任务；任务在其工作真正停止后以 `killed` 结算。终止任务返回其当前快照，可选的原因会被记录并转发给任务。
+- `job_input(job_id, text, close?)`——向运行中任务的实时 stdin 写入 UTF-8 文本（其生产方启动了 stdin 时，例如显式 `run_in_background` 的 bash 命令）；结果只报告字节数，绝不回显写入的文本，`close: true` 会在写入后关闭流。未知、已完成、归属他人或没有 stdin 的任务都会以清晰的错误失败。
 
 三个工具依次返回 `{ text, job }`、`PublicJobSnapshot[]` 与 `{ outcome: 'cancellation-requested' | 'already-finished', job }`。公共快照携带 id、kind、label、带实时进度行或终态 detail 的状态，以及开始／结束时间，并省略归属与环偏移。三个工具都通过通用 UI 卡片渲染：output 和 list 用 `read`，kill 用 `execute`。
 
@@ -109,7 +110,7 @@ kind: "package-reference"
 - [jobs 组映射](../README.zh.md)——同级组页面及其包表格。
 - [注册表约定](../jobs/README.zh.md)——工具背后的抽象 `ctx.jobs` 服务。
 - [进程本地注册表](../jobs-local/README.zh.md)——任务在本进程中的运行位置。
-- [生成的工具目录](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-jobs)——`job_output`、`job_list` 与 `job_kill` 的确切 schema。
+- [生成的工具目录](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-jobs)——`job_input`、`job_output`、`job_list` 与 `job_kill` 的确切 schema。
 - [生成的配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-tool-jobs)——每个受支持配置字段及其源声明。
 - [任务注册表 seam Agent Note](../../../.agents/notes/archived/architecture/2026-07-26-job-registry-seam.md)——按所有者隔离的注册表约定及其理由。
 

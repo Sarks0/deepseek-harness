@@ -76,6 +76,7 @@ class FakeBash extends ShellExecutor {
       timeoutMs: request.timeoutMs ?? 60_000,
       onExpiry: request.onExpiry ?? 'kill',
       stdoutMaxBytes: request.stdoutMaxBytes ?? 64_000,
+      liveStdin: request.liveStdin === true,
       ...request.signal ? { signal: request.signal } : {},
       ...request.stdin !== undefined ? { stdin: request.stdin } : {},
       ...request.env !== undefined ? { env: request.env } : {},
@@ -204,6 +205,7 @@ class ConfiningFakeBash extends ShellExecutor {
       timeoutMs: request.timeoutMs ?? 60_000,
       onExpiry: request.onExpiry ?? 'kill',
       stdoutMaxBytes: request.stdoutMaxBytes ?? 64_000,
+      liveStdin: request.liveStdin === true,
       ...request.signal ? { signal: request.signal } : {},
       ...request.dshEnv !== undefined ? { dshEnv: request.dshEnv } : {},
       sandboxPolicy: request.sandboxPolicy,
@@ -671,6 +673,22 @@ describe('sandbox escalation through ctx.approval', () => {
     expect(schema.description).not.toContain('named pipes')
     expect(schema.description).not.toContain('sandbox_permissions')
     expect(schema.parameters.properties).not.toHaveProperty('sandbox_permissions')
+  })
+
+  it('escalation requests carry the verbatim command as their remember subject', async () => {
+    const { ctx } = await setupSandboxed(true)
+    try {
+      const seen: { command?: unknown }[] = []
+      ctx.on('approval/request', async (req) => {
+        seen.push({ command: (req.subject as { command?: unknown } | undefined)?.command })
+        return 'allowed-once' as ApprovalOutcome
+      })
+      const result = await call(ctx, 'pwsh', { ...escalate, command: 'Get-VM canary' }, sandboxAgent())
+      expect(result.isError, text(result)).toBe(false)
+      expect(seen).toEqual([{ command: 'Get-VM canary' }])
+    } finally {
+      await ctx.fiber.dispose()
+    }
   })
 
   it('rejects injected escalation without a sandbox and narrower escalation without prompting', async () => {

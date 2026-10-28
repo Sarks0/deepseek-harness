@@ -11,12 +11,12 @@ import { readFileSync } from 'node:fs'
 import { inspect, parseEnv } from 'node:util'
 import { basename, dirname, isAbsolute, resolve } from 'node:path'
 import * as yaml from 'js-yaml'
-import { Context, type Fiber, type FiberState } from '@deepseek-ai/cordis'
+import { Context, Logger, type Exporter, type Fiber, type FiberState, type LoggerService } from '@deepseek-ai/cordis'
 import Loader, { type Entry, type EntryGroup, type EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import Include, { applyEntryPatches, entryListSchema, type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import Group from '@deepseek-ai/cordis-plugin-group'
 import { dshHomePath, resolveDshHome } from '@deepseek-ai/dsh-home-paths'
-import { createLaunchEnvironmentSnapshot, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
+import { createLaunchEnvironmentSnapshot, launchCwd, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
 export { readBundlePatches, readProfilePatches, resolveTelemetryPatch, type ProfileContext, type ProfilePnpmInvocation } from './profile-context.ts'
 export { sanitizeProfile } from './profile-sanitize.ts'
 export { getDshRuntimeVersion, evaluatePluginCompatibility, pluginCompatibilityWarning, type PluginCompatibility } from './plugin-compatibility.ts'
@@ -42,6 +42,8 @@ declare module '@deepseek-ai/cordis' {
   interface Context {
     /** Harness-home path resolver available to Loader `!!js` config expressions. */
     dshHomePath?: typeof dshHomePath
+    /** Launch-directory resolver available to Loader `!!js` config expressions. */
+    launchCwd?: typeof launchCwd
   }
 
   interface Events {
@@ -225,13 +227,13 @@ function readEnvLayer(
  * are checked before either is applied, and accepted values are materialized
  * without replacing inherited ones. The snapshot preserves which layer supplied each value.
  * @param binName - the diagnostic prefix on the diagnostics.
- * @param cwd - the invoking directory whose `.env` is the project layer.
+ * @param cwd - the invoking directory whose `.env` is the project layer; defaults to the launch directory ({@link launchCwd}), so a package-manager launch reads the caller's `.env` rather than the package root's.
  * @param warn - sink for the one-line misconfiguration diagnostics.
  * @returns this run's frozen environment snapshot.
  * @throws when either file declares a bootstrap-only variable, except {@link HOME_LAYER_PROXY_NAMES} in the Harness-home file.
  */
 export function loadLayeredEnv(
-  binName: string, cwd: string = process.cwd(),
+  binName: string, cwd: string = launchCwd(),
   warn: (line: string) => void = line => void process.stderr.write(line),
 ): LaunchEnvironmentSnapshot {
   const home = resolveDshHome()
@@ -1164,6 +1166,34 @@ export async function auditStartupEntries(
 }
 
 /**
+ * The console log sink every profile boots with: the tree's `warn` and `error`
+ * lines always reach stderr, and `info` lines join them only when
+ * `DSH_LOG_LEVEL=info` is exported. Without it cordis's `LoggerService` only
+ * fills its unread ring buffer, so a plugin that logs a skip (mcp-json
+ * discovery, the skill registry) looked identical to one that found nothing.
+ * The startup-failure report is unaffected: the audit summary prints once and
+ * the raw records stay in the saved diagnostics file.
+ * @param logger - the logger service to attach the exporter to.
+ * @param infoEnabled - whether the `DSH_LOG_LEVEL=info` gate admitted `info` lines.
+ */
+export function installConsoleLogSink(logger: LoggerService, infoEnabled: boolean): void {
+  const exporter: Exporter = {
+    colors: false,
+    // cordis compares `exporter.levels ?? logger.level ?? INFO` against the
+    // message level and drops anything higher; its scale counts UP with
+    // verbosity (ERROR 0, INFO 1, WARN 2, DEBUG 3). An exporter without a
+    // level therefore admits errors and info but silently drops every
+    // warning, which is what the built-in ring-buffer exporter does.
+    levels: { default: 2 },
+    export: (message) => {
+      if (message.type === 'info' && !infoEnabled) return
+      process.stderr.write(`${message.name}: ${Logger.format(exporter, message)}\n`)
+    },
+  }
+  logger.exporter(exporter)
+}
+
+/**
  * Boot the Loader against `absoluteConfigPath` and return only after the whole
  * tree settles. Relative entry names resolve against the config directory;
  * bare package names resolve there by default or against an explicit
@@ -1212,12 +1242,17 @@ export async function boot(
       if (type === 'warn' || type === 'error') startupLogs.push({ ts, name, type, args })
     },
   })
+  // The sink rides the root fiber, so it outlives the startup audit and keeps
+  // surfacing plugin logs for the tree's whole lifetime; the collector above
+  // is released with the diagnostics fiber once boot settles.
+  installConsoleLogSink(ctx.logger, process.env.DSH_LOG_LEVEL === 'info')
   // Two failure labels: `prepare` runs before any config-tree entry mounts,
   // so its failure is host setup, not the plugin tree.
   let stage = 'host preparation failed'
   try {
     ctx.baseUrl = pathToFileURL(dirname(absoluteConfigPath)).href + '/'
     ctx.provide('dshHomePath', dshHomePath)
+    ctx.provide('launchCwd', launchCwd)
     // Fiber.update() discards the restart promise. Observe it before the
     // waterfall returns; activation audits still report the failed fiber.
     ctx.on('internal/update', (_config, _noSave, next: () => unknown) => {

@@ -42,7 +42,7 @@ kind: "package-reference"
   name: '@deepseek-ai/dsh-sandbox-policy'    # the deployment default mode and workspace-write root
   config:
     mode: workspace-write                    # the deployment default every session starts from
-    workspaceRoot: !!js process.cwd()        # the boundary workspace-write may write under
+    workspaceRoot: !!js launchCwd()             # the boundary workspace-write may write under (the launch directory: INIT_CWD ?? process.cwd())
 - id: bash
   name: '@deepseek-ai/dsh-bash-sandbox'      # the confined executor behind ctx.shell
 ```

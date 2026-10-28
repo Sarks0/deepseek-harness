@@ -59,6 +59,18 @@ describe('registration', () => {
     await bareFiber.dispose()
   })
 
+  it('defaults the cwd to the package-manager caller directory recorded in INIT_CWD', async () => {
+    vi.stubEnv('INIT_CWD', '/caller/workspace')
+    try {
+      const bare = new Context()
+      const bareFiber = await bare.plugin(LocalFileSystem)
+      expect((bare.fs as LocalFileSystem).config.cwd).toBe('/caller/workspace')
+      await bareFiber.dispose()
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('maps only absolute host paths into its process path namespace', () => {
     const path = join(dir, 'image.png')
     expect(fs.processPathFromHostPath(path)).toBe(path)

@@ -111,11 +111,12 @@ export function applyWriteTool(ctx: Context, sandbox: FsSandboxController): void
     },
     async execute(args: WriteToolArgs, exec) {
       const input = parseWriteArgs(args)
-      // Resolve the per-call sandbox policy (approved mode > session override
-      // > backend default, plus the session cwd root) BEFORE anything executes;
-      // an escalating call throws its distinct text on any non-grant.
-      const sandboxPolicy = await sandbox.resolvePolicy('write', args, exec)
+      // Resolve the target first so the per-call sandbox policy (approved
+      // mode > session override > backend default) can scope an escalation —
+      // and any remembered grant — to the exact path; an escalating call
+      // throws its distinct text on any non-grant before anything executes.
       const target = await ctx.fs.resolve(input.filePath, await sessionResolveOptions(ctx, exec))
+      const sandboxPolicy = await sandbox.resolvePolicy('write', args, exec, [target.displayPath])
       // Single-slot decision: the policy plugin produces createIfAbsent/
       // replaceIfVersion; the bare default is undefined (unconditional). No stat.
       const intent = await ctx.waterfall('fs/write-intent', target, exec, () => undefined)

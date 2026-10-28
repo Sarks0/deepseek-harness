@@ -43,7 +43,7 @@ Load the backend with a base directory; relative paths resolve against it, and a
 
 | Field | Default | Meaning |
 |---|---|---|
-| `cwd` | `process.cwd()` | Base directory for relative paths |
+| `cwd` | the launch directory (`INIT_CWD ?? process.cwd()`) | Base directory for relative paths |
 | `diffBasisMaxBytes` | `10 MiB` | UTF-8 byte limit per overwrite-diff side; larger overwrites return `before: null` |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-fs-local) is the exhaustive source for every accepted field and its JSDoc.

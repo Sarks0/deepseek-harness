@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "MCP JSON 探索",
+    "description": "プロジェクトの .mcp.json を読み込み、MCP サーバーを登録します。"
+  }
+}

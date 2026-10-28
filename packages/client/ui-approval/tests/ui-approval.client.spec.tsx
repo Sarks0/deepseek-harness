@@ -541,3 +541,64 @@ it.each(['allow', 'reject', 'always', 'keyboard'] as const)('settles a fixed app
   await waitFor(() => { expect(actions[action]).toHaveBeenCalledOnce() })
   expect(Object.values(actions).filter(callback => callback.mock.calls.length > 0)).toEqual([actions[action]])
 })
+
+describe('ApprovalPanel remember wiring', () => {
+  function panelProps(over: Partial<Parameters<typeof ApprovalPanel>[0]> = {}) {
+    const pending = new PendingApproval(id('sess-remember'), {
+      toolName: 'bash',
+      callId: 'call-remember' as ToolCallId,
+      reason: 'escalate sandbox to danger-full-access: lab VM',
+      subject: { kind: 'sandbox-escalation', from: 'workspace-write', to: 'danger-full-access', command: 'xfreerdp3 /v:canary' },
+    })
+    const renderFactorySlot = vi.fn((_name: string, _input: unknown) => null)
+    const props = {
+      matched: pending,
+      renderFactorySlot,
+      t: (key: string) => key,
+      resolveReason: () => 'resolved',
+      ...over,
+    } as unknown as Parameters<typeof ApprovalPanel>[0]
+    return { props, pending, renderFactorySlot }
+  }
+
+  it('omits onAlways when no remember callback is injected', () => {
+    const { props, renderFactorySlot } = panelProps()
+    render(<ApprovalPanel {...props} />)
+    const input = renderFactorySlot.mock.calls[0]![1] as unknown as { onAlways?: unknown }
+    expect(input.onAlways).toBeUndefined()
+  })
+
+  it('onAlways settles allowed-once only after remember resolves true', async () => {
+    const { props, pending, renderFactorySlot } = panelProps()
+    const remember = vi.fn(async (ask: PendingApproval) => ask === pending)
+    render(<ApprovalPanel {...props} remember={remember} />)
+    const input = renderFactorySlot.mock.calls[0]![1] as unknown as { onAlways: () => Promise<void> }
+    const settled = pending.result
+    await act(async () => { await input.onAlways() })
+    await expect(settled).resolves.toBe('allowed-once')
+    expect(remember).toHaveBeenCalledWith(pending)
+  })
+
+  it('a refused remember leaves the ask answerable', async () => {
+    const { props, pending, renderFactorySlot } = panelProps()
+    const remember = vi.fn(async () => false)
+    render(<ApprovalPanel {...props} remember={remember} />)
+    const input = renderFactorySlot.mock.calls[0]![1] as unknown as { onAlways: () => Promise<void> }
+    await act(async () => { await input.onAlways() })
+    expect(pending.answerable).toBe(true)
+    await act(async () => { await pending.answer('rejected') })
+    await expect(pending.result).resolves.toBe('rejected')
+  })
+
+  it('the shared card renders the Always allow button when onAlways is present', () => {
+    const t = (key: string) => key
+    const base = {
+      requestKey: 'rk', title: 'title', canAnswer: () => true,
+      onAllow: () => Promise.resolve(), onReject: () => Promise.resolve(), t,
+    } as unknown as Parameters<typeof ApprovalCard>[0]
+    const { rerender } = render(<ApprovalCard {...base} />)
+    expect(screen.queryByRole('button', { name: 'allowAlways' })).toBeNull()
+    rerender(<ApprovalCard {...base} onAlways={() => Promise.resolve()} />)
+    expect(screen.getByRole('button', { name: 'allowAlways' })).toBeTruthy()
+  })
+})

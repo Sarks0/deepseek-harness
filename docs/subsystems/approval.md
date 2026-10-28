@@ -81,6 +81,10 @@ interface ApprovalRequest extends ApprovalRequestEvent {
 }
 ```
 
+## Remembered grants
+
+[`dsh-approval-memory`](../../packages/interaction/approval-memory/README.md) is an opt-in prepend answerer that checks a durable grant store before any human answerer. A matching grant answers `allowed-once` — the audit pair above still lands — and a miss delegates unchanged. Recording happens only when a person answers **Always allow** in the Web UI for an ask whose asker supplied a remember subject: shell escalations carry the verbatim command, filesystem escalations the resolved target path. Scopes are conservative (a sha256 digest or a segment-aware path prefix), recording beneath the harness home is refused, the `never` policy still short-circuits before any listener (delegated children can never consume grants), and `/approvals` lists or revokes everything the store holds. See [Lab sessions](../user/guide/lab-sessions.md) for when to prefer the unattended preset instead.
+
 ## Dispatch and audit
 
 `ctx.approval.request(req)` requires the requesting session to be inside an open turn. It appends `approval/asked`, obtains one outcome, appends the matching `approval/decided`, and resolves with that outcome. The `never` policy is enforced inside the service before waterfall dispatch, so even an answerer registered later with `prepend` cannot bypass it. Answerers return an outcome when they own the request or call `next()` to delegate; the first answer occupies the single decision slot.

@@ -83,6 +83,7 @@ interface TrackedJob {
   /** Exact lifecycle owner; session-id authorization is derived from it. */
   owner: Agent | undefined
   cancel: (reason?: string) => void
+  input: ((text: string, options?: { close?: boolean }) => number) | undefined
   status: JobStatus
   ring: OutputRing
   /** The model's consuming cursor; {@link JobRegistry.readAt} never moves it. */
@@ -250,6 +251,7 @@ export class LocalJobRegistry extends JobRegistry {
       outputLimitBytes: spec.outputLimitBytes,
       owner,
       cancel: hooks.cancel.bind(hooks),
+      input: hooks.input?.bind(hooks),
       status: 'running',
       ring,
       modelCursor: 0,
@@ -331,6 +333,17 @@ export class LocalJobRegistry extends JobRegistry {
 
   kill(id: JobId, caller?: SessionId, reason?: string): 'requested' | 'already-finished' {
     return this.killJob(this.expect(id, caller), reason)
+  }
+
+  write(id: JobId, text: string, options?: { close?: boolean }, caller?: SessionId): number {
+    const job = this.expect(id, caller)
+    if (isTerminal(job.status)) {
+      throw new Error(`job ${id} already finished (${job.status}); its stdin is gone`)
+    }
+    if (job.input === undefined) {
+      throw new Error(`job ${id} has no stdin to write to (its producer started none)`)
+    }
+    return job.input(text, options)
   }
 
   async wait(id: JobId, timeoutMs: number, caller?: SessionId, signal?: AbortSignal): Promise<JobView> {

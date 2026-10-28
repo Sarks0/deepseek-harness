@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-agent 可以在会话期间发现并加载 skill。在首次请求前，如果存在模型可调用 skill 且 `skill` 工具可见，agent 会收到一份持久目录，列出可用 skill 的名称与有长度上限的描述，并可用 `skill` 工具加载完整指令。用户可以用 `/name` 调用某个用户可调用的 skill，把相同的指令注入该步骤。目录变更会追加一份完整替换，其中空目录会停用旧名称；可配置 `catalogDescriptionMaxLength` 来限制每条描述的长度。
+agent 可以在会话期间发现并加载 skill。在首次请求前，如果存在模型可调用 skill 且 `skill` 工具可见，agent 会收到一份持久目录，列出 skill 名称、有上限的描述与有上限的 `use when:` 路由提示，并可用 `skill` 工具加载完整指令。用户可以用 `/name` 调用用户可调用的 skill，把相同指令注入该步骤；与 skill 触发文本匹配的自然语言请求会收到点名匹配项的简短提醒。目录变更会追加完整替换；可配置 `catalogDescriptionMaxLength`、`catalogWhenToUseMaxLength`、`triggerInjection` 与 `triggerInjectionMax` 来约束两者。
 
 ## 目录
 
@@ -45,15 +45,19 @@ agent 可以在会话期间发现并加载 skill。在首次请求前，如果�
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
-| `catalogDescriptionMaxLength` | `500` | 会话目录中渲染的规范化描述最大长度；最小为 3 |
+| `catalogDescriptionMaxLength` | `1000` | 会话目录中渲染的规范化描述最大长度；最小为 3 |
+| `catalogWhenToUseMaxLength` | `500` | 会话目录中渲染的规范化 when-to-use 最大长度；最小为 3 |
+| `triggerInjection` | `true` | 将自然语言请求与 skill 触发文本匹配，并在提醒中点名匹配项 |
+| `triggerInjectionMax` | `3` | 一条触发提醒最多点名的 skill 数量；最小为 1 |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-tool-skill)是每个受支持字段的穷尽式真源。
 
 ### 模型得到什么
 
-- **会话目录。** 当存在模型可调用 skill 且 `skill` 工具可见时，agent 会在首次请求前收到一条持久的用户角色消息，列出每个 skill 的名称与有长度上限的描述；该消息告诉模型在着手任务前先用工具加载 skill，且绝不能仅凭摘要推断指令。
+- **会话目录。** 当存在模型可调用 skill 且 `skill` 工具可见时，agent 会在首次请求前收到一条持久的用户角色消息，列出每个 skill 的名称、有长度上限的描述，以及（当 skill 声明时）有长度上限的 `use when:` 路由提示；该消息告诉模型在着手任务前先用工具加载 skill，且绝不能仅凭摘要推断指令。
 - **加载工具。** 模型以精确的 skill 名称调用 `skill`，并收到完整指令正文以及规范的 `<skill_content>` 块中的资源指引；该结果作为普通工具历史保留。
 - **用户显式调用。** 直接用户输入中的 `/name` token 若指名某个用户可调用 skill，会把该 skill 的指令注入该步骤，而无需模型自行加载。
+- **确定性的触发提醒。** 与 skill 触发文本匹配的自然语言请求会追加一条简短提醒，点名匹配的 skill（最多 `triggerInjectionMax` 个，按目录顺序），并指示模型在自行发挥前先用 `skill` 工具加载它们；匹配本身绝不注入正文。当请求不区分大小写地包含 skill 的某个被引号包裹的触发短语（描述或 `whenToUse` 中三个或更多字符的引号片段——引号即显式触发声明），或包含其至少四个字符的单词 token 且该 token 既非对话填充词（固定的停用词表）、也未在超过两个候选 skill 的触发文本中出现时，该 skill 即匹配，因此目录内常见的词是噪声，罕见的词是触发。同一步骤中已被 `/name` 手势注入的 skill 不会被再次点名；会话中已可见的相同提醒（相同点名与提示文本）绝不重复，新提示会产生新提醒。
 - **实时目录更新。** 后续成员关系、描述或可见性变化会追加完整的替换目录；删除全部 skill 时会追加空目录，停用较早的名称。
 
 ### 可观察的成功与失败

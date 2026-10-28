@@ -230,13 +230,14 @@ export function apply(ctx: Context, config: Config = {}): void {
     justification: string,
     exec: ToolExecution,
     standingPolicy: SandboxExecutionPolicy | undefined,
+    command: string,
   ): Promise<SandboxMode> => {
     if (escalationModes.length === 0) {
       throw new Error('sandbox_permissions is not available in this composition (no sandboxing executor to escalate)')
     }
     const effectiveMode = (standingPolicy as SandboxExecutionPolicy).mode
     return approveEscalation(
-      { requestedMode: mode, justification, effectiveMode, subject: 'command' },
+      { requestedMode: mode, justification, effectiveMode, subject: 'command', rememberSubject: { command } },
       {
         approver: ctx.get('approval'),
         agent: exec.agent,
@@ -282,6 +283,12 @@ export function apply(ctx: Context, config: Config = {}): void {
           )
           return {
             done: hooks.done,
+            // An explicit background run resolves the shell spec with
+            // liveStdin, so the process exposes writeInput; forwarding the
+            // hook is what lets job_input reach it. Foreground-promoted jobs
+            // spawn without a stdin pipe, and the same hook reports the
+            // missing stdin to job_input.
+            input: hooks.input,
             // A kill from outside this call (the human's, a parallel job_kill)
             // reaches the process here; its reason is what the model reads.
             cancel: (reason) => {
@@ -480,7 +487,7 @@ export function apply(ctx: Context, config: Config = {}): void {
         const standingPolicy = resolveSandboxPolicy(exec)
         validateBashArgs(args, standingPolicy?.mode)
         const approvedMode = args.sandbox_permissions !== undefined && args.justification !== undefined
-          ? await approveBashEscalation(args.sandbox_permissions, args.justification, exec, standingPolicy)
+          ? await approveBashEscalation(args.sandbox_permissions, args.justification, exec, standingPolicy, args.command)
           : undefined
         const policy = approvedMode === undefined
           ? standingPolicy
@@ -505,7 +512,9 @@ export function apply(ctx: Context, config: Config = {}): void {
           }
           // The caller owns cancellation until ctx.jobs commits detached ownership.
           if (exec.signal.aborted) throw toolAborted()
-          const spec = ctx.shell.resolve({ ...request, onExpiry: 'none' })
+          // Only an explicit background run opens a live stdin the model can
+          // later write through job_input; foreground stays stdin-less by design.
+          const spec = ctx.shell.resolve({ ...request, onExpiry: 'none', liveStdin: true })
           return { kind: 'background' as const, jobId: startJob(jobs, args, exec, spec).id, cwd: spec.workdir }
         }
         // A foreground call is a job the tool waits on, so the command is

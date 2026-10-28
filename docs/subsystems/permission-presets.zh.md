@@ -8,7 +8,7 @@
 
 ## 预设表
 
-预设把一个稳定 key 映射到一组沙箱／审批组合，外加可选的客户端展示信息。默认配置表自带 `workspace-write`（`workspace-write` + `ask`）和 `danger-full-access`（`danger-full-access` + `never`）；`custom` 与 `auto` 是保留名称，不能配置。
+预设把一个稳定 key 映射到一组沙箱／审批组合，外加可选的客户端展示信息。默认配置表自带 `workspace-write`（`workspace-write` + `ask`）和 `danger-full-access`（`danger-full-access` + `never`）；`custom` 与 `auto` 是保留名称，不能配置。内置 base 组合还配置了 `read-only` 与 `lab` —— 后者是显式的无人值守选择，见[实验室会话](../user/guide/lab-sessions.zh.md)。
 
 ```ts type-equiv
 /** One preset's sandbox/approval bundle and optional client presentation. */

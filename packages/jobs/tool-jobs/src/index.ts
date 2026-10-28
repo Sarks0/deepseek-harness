@@ -1,5 +1,5 @@
 /**
- * Model-facing `job_output`, `job_list`, and `job_kill` tools over
+ * Model-facing `job_input`, `job_output`, `job_list`, and `job_kill` tools over
  * `ctx.jobs`. Loading the plugin attaches the controller required by
  * producers. It also delivers completions the model has not already
  * collected to the owning agent: injected into a busy owner's next step, or
@@ -600,5 +600,42 @@ export function apply(ctx: Context, config: Config): void {
       })
     },
     presentCall: args => presentJobCall(`Kill background job ${args.job_id}`, 'execute', args.job_id),
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'job_input',
+    description: 'Write text to a running background job\'s stdin, when its producer started one — answer a password or certificate prompt, feed a REPL, or close the stream.',
+    parameters: {
+      job_id: { type: 'string', required: true, description: 'Job id returned by the tool that started the background work.' },
+      text: { type: 'string', required: true, description: 'UTF-8 text to write. Append a newline (\\n) where the program expects Enter. May be empty when only closing the stream.' },
+      close: { type: 'boolean', description: 'Close the job\'s stdin after writing. Defaults to false.' },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          written: { type: 'integer', required: true },
+          closed: { type: 'boolean', required: true },
+          job: { ...PUBLIC_JOB_SCHEMA, required: true },
+        },
+      },
+      render: (_args, value) => [{
+        type: 'text',
+        text: `wrote ${String(value.written)} bytes to stdin of job ${value.job.id}`
+          + `${value.closed ? ' and closed the stream' : ''}\n${statusLine(value.job)}`,
+      }],
+    },
+    execute(args, exec) {
+      const id = validateJobId(args.job_id)
+      // The written text may carry secrets; only its length enters the result.
+      const written = ctx.jobs.write(id, args.text, { close: args.close === true }, exec.agent?.id)
+      return Promise.resolve({
+        written,
+        closed: args.close === true,
+        job: publicJob(ctx.jobs.get(id, exec.agent?.id)),
+      })
+    },
+    presentCall: args => presentJobCall(`Write to stdin of background job ${args.job_id}`, 'execute', args.job_id),
   }))
 }

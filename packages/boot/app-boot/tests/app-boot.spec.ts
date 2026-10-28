@@ -9,7 +9,7 @@ import type {} from '@deepseek-ai/dsh-system-prompt'
 import {
   auditStartupEntries, boot, StartupError,
   FAIL_LOUD_RELEASE_TIMEOUT_MS,
-  installFailLoud, loadEnv, loadLayeredEnv, loadOverlayPatches, resolveConfigPath, type FailLoudEvent, type FailLoudProcess,
+  installConsoleLogSink, installFailLoud, loadEnv, loadLayeredEnv, loadOverlayPatches, resolveConfigPath, type FailLoudEvent, type FailLoudProcess,
 } from '../src/index.ts'
 
 const NAME = 'dsh-test-bin'
@@ -131,6 +131,27 @@ describe('loadLayeredEnv', () => {
       expect(process.env['APP_BOOT_LAYERED_INHERITED']).toBe('inherited')
       expect(warn).not.toHaveBeenCalled()
     } finally {
+      clear()
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('reads the project layer from the package-manager caller directory recorded in INIT_CWD', () => {
+    const home = tmp()
+    const project = tmp()
+    writeFileSync(join(project, '.env'), `${NAMES[2]}=project-only\n`)
+    clear()
+    vi.stubEnv('DSH_HOME', home)
+    vi.stubEnv('INIT_CWD', project)
+    const write = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    try {
+      // The default cwd is the launch directory: `pnpm --dir <repo> dsh` chdirs
+      // into the repo, so the caller's directory arrives only via INIT_CWD.
+      loadLayeredEnv(NAME)
+      expect(process.env[NAMES[2]]).toBe('project-only')
+      expect(write).not.toHaveBeenCalled()
+    } finally {
+      write.mockRestore()
       clear()
       vi.unstubAllEnvs()
     }
@@ -1045,6 +1066,34 @@ describe('boot', () => {
     }
   })
 
+  it('exposes launchCwd to Loader config expressions', async () => {
+    const dir = tmp()
+    const caller = tmp()
+    vi.stubEnv('INIT_CWD', caller)
+    writeFileSync(join(dir, 'capture.mjs'), [
+      'export const name = "capture"',
+      'export function apply(ctx, config) {',
+      '  ctx.provide("capturedCwd", config.cwd)',
+      '}',
+      '',
+    ].join('\n'))
+    writeFileSync(join(dir, 'cordis.yml'), [
+      '- id: capture',
+      '  name: ./capture.mjs',
+      '  config:',
+      '    cwd: !!js launchCwd()',
+      '',
+    ].join('\n'))
+    let ctx: Context | undefined
+    try {
+      ctx = await boot(NAME, join(dir, 'cordis.yml'))
+      expect(ctx.get('capturedCwd')).toBe(caller)
+    } finally {
+      await ctx?.fiber.dispose()
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('returns instead of asserting over a tree a surface disposed mid-startup', async () => {
     // A surface can dispose the root fiber while boot() is still awaiting the
     // Loader, before the last entry settles. The Loader service goes with the
@@ -1268,4 +1317,44 @@ describe('boot', () => {
     }
   })
 
+})
+
+describe('installConsoleLogSink', () => {
+  /** The stderr lines the sink wrote while `run` drove the logger. */
+  function logged(infoEnabled: boolean, run: (logger: Context['logger']) => void): string[] {
+    const ctx = new Context()
+    installConsoleLogSink(ctx.logger, infoEnabled)
+    const write = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    try {
+      run(ctx.logger)
+      return write.mock.calls.map(call => String(call[0]))
+    } finally {
+      write.mockRestore()
+    }
+  }
+
+  it('always prints warn and error lines to stderr', () => {
+    const lines = logged(false, logger => {
+      logger.warn('skipped provider %s', 'acme')
+      logger.error('boom %d', 7)
+    })
+    expect(lines.join('')).toContain('skipped provider acme')
+    expect(lines.join('')).toContain('boom 7')
+  })
+
+  it('keeps info lines silent while the DSH_LOG_LEVEL=info gate is unset', () => {
+    const lines = logged(false, logger => {
+      logger.info('excluded server "noisy" by configuration')
+      logger.warn('visible')
+    })
+    expect(lines.join('')).not.toContain('excluded server')
+    expect(lines.join('')).toContain('visible')
+  })
+
+  it('prints info lines once DSH_LOG_LEVEL=info opens the gate', () => {
+    const lines = logged(true, logger => {
+      logger.info('covered server "kb-mcp" from .mcp.json')
+    })
+    expect(lines.join('')).toContain('covered server "kb-mcp" from .mcp.json')
+  })
 })

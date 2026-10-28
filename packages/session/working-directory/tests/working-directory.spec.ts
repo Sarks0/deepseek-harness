@@ -163,6 +163,19 @@ describe('Session working directories', () => {
     await expect(fixture(() => ({ defaultDirectory: 'relative/project' }))).rejects.toThrow('defaultDirectory must be absolute')
   })
 
+  it('defaults the deployment directory to the package-manager caller directory recorded in INIT_CWD', async () => {
+    // `pnpm --dir <repo> dsh` chdirs into the repo; the Session fallback
+    // directory (and so the project-root skill scan) belongs to the caller's
+    // directory, which survives only as INIT_CWD.
+    vi.stubEnv('INIT_CWD', '/caller/workspace')
+    try {
+      await using f = await fixture()
+      expect(f.ctx.workingDirectory.defaultDirectory).toBe('/caller/workspace')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('recovers a Session without origin metadata to its configured default', async () => {
     await using f = await fixture(root => ({ defaultDirectory: root }))
     const agent = await f.harness.create(SessionId('fallback-recovery'))

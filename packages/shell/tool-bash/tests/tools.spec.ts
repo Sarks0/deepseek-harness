@@ -145,6 +145,7 @@ class RecordingSandboxExecutor extends ShellExecutor {
       command: request.command,
       workdir: request.workdir ?? process.cwd(),
       stdoutMaxBytes: request.stdoutMaxBytes ?? 64_000,
+      liveStdin: request.liveStdin === true,
       timeoutMs: request.timeoutMs ?? 1000,
       onExpiry: request.onExpiry ?? 'kill',
       ...request.signal ? { signal: request.signal } : {},
@@ -195,6 +196,7 @@ class CountingStartExecutor extends ShellExecutor {
       timeoutMs: request.timeoutMs ?? 0,
       onExpiry: request.onExpiry ?? 'kill',
       stdoutMaxBytes: request.stdoutMaxBytes ?? 64_000,
+      liveStdin: request.liveStdin === true,
       sandboxPolicy: request.sandboxPolicy,
     }
   }
@@ -426,7 +428,7 @@ describe('bash tool', () => {
   it('registers the bash schema with run_in_background exposed while a job registry is composed', async () => {
     const ctx = await setupWithJobs()
     const schemas = ctx.tools.schemas()
-    expect(schemas.map(schema => schema.name).sort()).toEqual(['bash', 'job_kill', 'job_list', 'job_output'])
+    expect(schemas.map(schema => schema.name).sort()).toEqual(['bash', 'job_input', 'job_kill', 'job_list', 'job_output'])
     const bashSchema = schemas.find(schema => schema.name === 'bash')!
     expect(bashSchema.parameters).toMatchObject({
       type: 'object',
@@ -599,6 +601,20 @@ describe('background execution through the job runtime', () => {
     // A later read reports the terminal outcome in the generic status line.
     const final = await callUntilText(ctx, 'job_output', { job_id: currentId(ctx) }, '[status: completed, exit code: 0]')
     expect(final.isError).toBe(false)
+  })
+
+  it('job_input reaches the live stdin of a background job and the command reads it', async () => {
+    const ctx = await setupWithJobs()
+    const started = await call(ctx, 'bash', { command: 'read line; echo got:$line', description: 'test command', run_in_background: true })
+    expect(started.isError).toBe(false)
+    const id = currentId(ctx)
+
+    const written = await call(ctx, 'job_input', { job_id: id, text: 'hello\n' })
+    expect(written.isError).toBe(false)
+    expect(text(written)).toBe(`wrote 6 bytes to stdin of job ${id}\n[status: running]`)
+
+    const final = await callUntilText(ctx, 'job_output', { job_id: id }, 'got:hello')
+    expect(text(final)).toContain('got:hello')
   })
 
   it('a running background job is killable through the REAL job_kill tool', async () => {
@@ -786,6 +802,22 @@ describe('sandbox escalation through the generic task producer', () => {
       expect(result.isError).toBe(true)
       expect(bash.modes).toEqual([])
       expect(prompted).not.toHaveBeenCalled()
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('escalation requests carry the verbatim command as their remember subject', async () => {
+    const { ctx } = await setupSandboxed(true)
+    try {
+      const seen: { command?: unknown }[] = []
+      ctx.on('approval/request', async (req) => {
+        seen.push({ command: (req.subject as { command?: unknown } | undefined)?.command })
+        return 'allowed-once' as ApprovalOutcome
+      })
+      const result = await call(ctx, 'bash', { ...escalate, command: 'xfreerdp3 /v:canary' }, sandboxAgent())
+      expect(result.isError, text(result)).toBe(false)
+      expect(seen).toEqual([{ command: 'xfreerdp3 /v:canary' }])
     } finally {
       await ctx.fiber.dispose()
     }
@@ -1327,6 +1359,7 @@ describe('the model-facing bash tool builds its request from named args only (no
         timeoutMs: request.timeoutMs ?? 0,
         onExpiry: request.onExpiry ?? 'kill',
         stdoutMaxBytes: request.stdoutMaxBytes ?? 64_000,
+        liveStdin: request.liveStdin === true,
         ...request.signal ? { signal: request.signal } : {},
         ...request.stdin !== undefined ? { stdin: request.stdin } : {},
         ...request.env !== undefined ? { env: request.env } : {},

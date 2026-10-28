@@ -19,6 +19,7 @@ const activity = new Map<SessionId, SessionActivity[]>()
 class RosterOnlyJobRegistry extends JobRegistry {
   readonly events = { subscribe: () => () => {} }
   start(): never { throw new Error('unsupported') }
+  write(): never { throw new Error('unsupported') }
   list(caller?: SessionId): JobView[] {
     return (jobs.get(caller) ?? []).map((status, index) => ({
       id: JobId(`bash-${index + 1}`),

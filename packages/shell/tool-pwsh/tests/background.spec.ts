@@ -67,6 +67,7 @@ class FakePwsh extends ShellExecutor {
       timeoutMs: request.timeoutMs ?? 60_000,
       onExpiry: request.onExpiry ?? 'kill',
       stdoutMaxBytes: request.stdoutMaxBytes ?? 64_000,
+      liveStdin: request.liveStdin === true,
       ...request.signal ? { signal: request.signal } : {},
       ...request.dshEnv !== undefined ? { dshEnv: request.dshEnv } : {},
       sandboxPolicy: request.sandboxPolicy,

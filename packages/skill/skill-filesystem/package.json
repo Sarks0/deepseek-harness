@@ -37,12 +37,14 @@
   "dependencies": {
     "chokidar": "5.0.0",
     "@deepseek-ai/schemastery": "workspace:~",
+    "picomatch": "^4.0.7",
     "yaml": "^2.4.2"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-fs": "workspace:*",
     "@deepseek-ai/dsh-home-paths": "workspace:*",
     "@deepseek-ai/dsh-skill": "workspace:*",
-    "@deepseek-ai/cordis": "workspace:~"
+    "@deepseek-ai/cordis": "workspace:~",
+    "@types/picomatch": "^4.0.3"
   }
 }

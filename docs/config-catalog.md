@@ -366,6 +366,25 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-api-workspace-files -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-approval-memory -->
+<a id="deepseek-aidsh-approval-memory"></a>
+
+## `@deepseek-ai/dsh-approval-memory`
+
+- `inject`: `approval` · `storageDomain`
+- `source`: [`packages/interaction/approval-memory/src/index.ts:43`](../packages/interaction/approval-memory/src/index.ts)
+
+```ts config-catalog
+/** Plugin config. */
+export interface Config {
+  /** `file` records the exact denied path; `parent-dir` the whole parent directory. */
+  rememberFsScope?: 'file' | 'parent-dir'
+  /** Absolute path prefixes beneath which no grant may be recorded. */
+  denyPrefixes?: string[]
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-approval-memory -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-attachment-local -->
 <a id="deepseek-aidsh-attachment-local"></a>
 
@@ -1447,12 +1466,12 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-fs-local`
 
-- `source`: [`packages/fs/fs-local/src/index.ts:46`](../packages/fs/fs-local/src/index.ts)
+- `source`: [`packages/fs/fs-local/src/index.ts:47`](../packages/fs/fs-local/src/index.ts)
 
 ```ts config-catalog
 /** Configuration for the local filesystem backend. */
 export interface Config {
-  /** Base directory for relative paths. Defaults to `process.cwd()`. */
+  /** Base directory for relative paths. Defaults to the launch directory (`INIT_CWD ?? process.cwd()`). */
   cwd?: string
   /**
    * Exclusive UTF-8 byte limit on each overwrite-diff side, capped by the
@@ -1507,7 +1526,7 @@ export interface Config {
 
 - `inject`: `agentDefaultModel` · `agents` · `sessions`
 - `refs`: [`ApprovalPolicy`](subsystems/approval.md)
-- `source`: [`packages/bundle/headless/src/index.ts:48`](../packages/bundle/headless/src/index.ts)
+- `source`: [`packages/bundle/headless/src/index.ts:49`](../packages/bundle/headless/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: the task and run options resolved from this app's injected provider service. */
@@ -2327,6 +2346,31 @@ export interface ReconnectConfig {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-mcp-client -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-mcp-json-discovery -->
+<a id="deepseek-aidsh-mcp-json-discovery"></a>
+
+## `@deepseek-ai/dsh-mcp-json-discovery`
+
+- `source`: [`packages/mcp/mcp-json-discovery/src/index.ts:32`](../packages/mcp/mcp-json-discovery/src/index.ts)
+
+```ts config-catalog
+/** Discovery configuration. */
+export interface Config {
+  /** Whether discovery runs; `false` turns the plugin into a no-op. */
+  enabled?: boolean
+  /**
+   * Path of the discovery document. Relative paths resolve against the
+   * harness launch directory (the deployment workspace — the caller's
+   * directory for package-manager launches, `INIT_CWD ?? process.cwd()`),
+   * the same root the base bundle's sandbox policy uses.
+   */
+  path?: string
+  /** Picomatch patterns naming servers to leave unregistered; empty keeps all. */
+  excludeServers?: string[]
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-mcp-json-discovery -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-message-feedback -->
 <a id="deepseek-aidsh-message-feedback"></a>
 
@@ -2772,7 +2816,7 @@ export interface Config {
 
 - `inject`: `sessionProjections`
 - `refs`: [`SandboxMode`](subsystems/sandbox.md)
-- `source`: [`packages/sandbox/sandbox-policy/src/index.ts:94`](../packages/sandbox/sandbox-policy/src/index.ts)
+- `source`: [`packages/sandbox/sandbox-policy/src/index.ts:95`](../packages/sandbox/sandbox-policy/src/index.ts)
 
 ```ts config-catalog
 /**
@@ -2787,7 +2831,8 @@ export interface Config {
   mode?: SandboxMode
   /**
    * Absolute fallback root for agentless calls and sessions without a cwd (default:
-   * `process.cwd()`). Normal agent calls use their session cwd instead.
+   * the launch directory, `INIT_CWD ?? process.cwd()`). Normal agent calls use their
+   * session cwd instead.
    */
   workspaceRoot?: string
   /**
@@ -3188,7 +3233,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-skill-filesystem`
 
 - `inject`: `skills`
-- `source`: [`packages/skill/skill-filesystem/src/index.ts:48`](../packages/skill/skill-filesystem/src/index.ts)
+- `source`: [`packages/skill/skill-filesystem/src/index.ts:50`](../packages/skill/skill-filesystem/src/index.ts)
 
 ```ts config-catalog
 /** Local filesystem skill provider configuration. */
@@ -3203,6 +3248,12 @@ export interface Config {
   agentsHome?: string
   /** Additional skill roots scanned after project roots and before user roots. */
   customSkillDirs?: string[]
+  /**
+   * Glob-pattern allowlist over discovered skill names; a skill is kept only
+   * when its name matches at least one pattern. Absent or empty keeps every
+   * discovered skill.
+   */
+  includeSkills?: string[]
   /** Whether host-local skill roots are watched for catalog changes. */
   watch?: boolean
   /** Whether Chokidar uses polling instead of native filesystem events. */
@@ -4142,13 +4193,19 @@ export interface Config {
 ## `@deepseek-ai/dsh-tool-skill`
 
 - `inject`: `agents` · `tools` · `skills` · `workingDirectory`
-- `source`: [`packages/skill/tool-skill/src/index.ts:62`](../packages/skill/tool-skill/src/index.ts)
+- `source`: [`packages/skill/tool-skill/src/index.ts:106`](../packages/skill/tool-skill/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing skill catalog configuration. */
 export interface Config {
   /** Maximum normalized description length rendered in the session catalog; minimum 3. */
   catalogDescriptionMaxLength?: number
+  /** Maximum normalized when-to-use length rendered in the session catalog; minimum 3. */
+  catalogWhenToUseMaxLength?: number
+  /** Match natural-language claims against skill trigger texts and name the matches in a reminder. */
+  triggerInjection?: boolean
+  /** How many matched skills one trigger reminder may name; minimum 1. */
+  triggerInjectionMax?: number
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-skill -->
@@ -4647,7 +4704,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-working-directory`
 
 - `inject`: `fs` · `sessionProjections` · `systemPrompt`
-- `source`: [`packages/session/working-directory/src/index.ts:51`](../packages/session/working-directory/src/index.ts)
+- `source`: [`packages/session/working-directory/src/index.ts:52`](../packages/session/working-directory/src/index.ts)
 
 ```ts config-catalog
 /** Deployment default for Sessions without an original project directory. */

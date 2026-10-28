@@ -39,6 +39,16 @@ const endpoint = launchEnvironmentOf(ctx).get('DEEPSEEK_BASE_URL')?.value
 
 `launchedThroughSsh(snapshot)` 仅在继承的进程层中存在非空 `SSH_CONNECTION` 或 `SSH_TTY` 时返回 true。Web 浏览器唤起、自适应目录选择器与 Open In 共用此判断；项目与用户 `.env` 中的值不作为 SSH 会话的依据。
 
+### 解析启动目录
+
+```ts
+import { launchCwd } from '@deepseek-ai/dsh-launch-environment'
+
+const workspaceRoot = launchCwd()
+```
+
+`launchCwd()` 在本进程由包管理器启动时返回调用方的工作目录，否则返回进程 cwd。`npm`、`pnpm`、`yarn` 在调用 bin 之前会 chdir 进包根目录，并把调用方目录记录在 `INIT_CWD` 中，因此所有使用该 helper 的 workspace-root 默认值与相对项目文件解析都始终指向用户启动时所在的 workspace。直接启动没有 `INIT_CWD`，其 cwd 本来就是调用方目录，行为不变。app-boot 会把 `launchCwd` 提供给 Loader 的 `!!js` 配置表达式，`loadLayeredEnv` 也据此读取调用目录的 `.env` 层。
+
 ### 各层的优先级
 
 | 层 | 它是什么 |

@@ -27,6 +27,10 @@ class ScriptedJobRegistry extends JobRegistry {
     throw new Error('not scripted')
   }
 
+  write(_id: JobId, _text: string, _options?: { close?: boolean }, _caller?: SessionId): number {
+    throw new Error('not scripted')
+  }
+
   list(caller?: SessionId): JobView[] {
     return this.rows
       .filter(row => row.owner === undefined || row.owner === caller)

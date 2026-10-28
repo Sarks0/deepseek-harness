@@ -57,6 +57,8 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
   'packages/experimental/speech-to-text-sensevoice': { kind: 'none', reason: 'Local recognition returns transient text without modifying model context.' },
   'packages/experimental/client-ui-voice-input': { kind: 'none', reason: 'Inserts reviewable text into the unsent draft without submitting to the Agent.' },
   'packages/experimental/plugin-market-bundle': { kind: 'indirect', reason: 'Mounts the pluginMarket service, which lets the Creator preset register the plugin_market tool documented in packages/boot/plugin-market.' },
+  'packages/mcp/mcp-json-discovery': { kind: 'indirect', reason: 'Mounts the MCP client bridge per discovered server; the bridge owns every model-visible tool definition and instruction section.' },
+  'packages/interaction/approval-memory': { kind: 'indirect', reason: 'A remembered ask resolves through the approval seam as an ordinary allowed-once outcome with an unchanged audit pair.' },
   'packages/experimental/client-ui-action-cards': { kind: 'indirect', reason: 'Card actions go to the Host card service, which owns the logged tool, decisions and status notice.' },
   'packages/experimental/client-ui-creation-recommendations': { kind: 'indirect', reason: 'The page card body starts a Creator through the Host page kind; the Host owns its logged task.' },
   'packages/experimental/client-ui-plugin-recommendations': { kind: 'indirect', reason: 'The plugin card body enables through the Host plugin kind; the Host card service owns the logged tool, decisions and status notice.' },

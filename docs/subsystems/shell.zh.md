@@ -47,6 +47,13 @@ interface ShellExecRequest {
    */
   stdin?: string | undefined
   /**
+   * Spawn the command with a live stdin pipe instead of a closed one, so
+   * `ShellProcess.writeInput` can answer its prompts later. Mutually exclusive
+   * with `stdin` (batch bytes); a request naming both fails resolution.
+   * Foreground one-shot calls leave it unset by design.
+   */
+  liveStdin?: boolean | undefined
+  /**
    * Ordinary environment entries for the command, merged after the credential
    * scrub. Managed facts belong in {@link dshEnv}, which merges after this
    * map, so an entry here can never displace one. Set by in-process plugins
@@ -88,6 +95,8 @@ interface ShellExecSpec {
   signal?: AbortSignal | undefined
   /** Bytes to write to stdin before closing it; absent means no stdin. */
   stdin?: string | undefined
+  /** Resolved live-stdin request: the process exposes `ShellProcess.writeInput`. */
+  liveStdin: boolean
   /**
    * Ordinary environment entries carried through from
    * {@link ShellExecRequest.env}; {@link dshEnv} still merges after them.

@@ -9,6 +9,8 @@ import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { Agent } from '@deepseek-ai/dsh-agent/types'
 import type { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
+/** The sandbox mode vocabulary, kept member-identical to `dsh-sandbox`'s without a cross-seam dependency so this file stays client-safe. */
+type SandboxMode = 'read-only' | 'workspace-write' | 'danger-full-access'
 
 /**
  * Pairs one `approval/asked` audit event with its `approval/decided`.
@@ -73,7 +75,25 @@ export interface ApprovalRequestEvent {
   readonly displayReason?: { readonly en: string; readonly [locale: string]: string }
   /** Cancellation lifetime of the pending request. */
   readonly signal?: AbortSignal
+  /**
+   * What a remember-able ask is about; supplied by the asker that knows its
+   * arguments. Absent on asks whose answer cannot be safely remembered.
+   */
+  readonly subject?: ApprovalRememberSubject
 }
+
+/** The closed subject vocabulary a remember-able approval can carry. */
+export type ApprovalRememberSubject = Readonly<{
+  kind: 'sandbox-escalation'
+  /** The mode the call was denied under. */
+  from: SandboxMode
+  /** The strictly wider mode the ask requests. */
+  to: SandboxMode
+  /** The verbatim command a shell escalation retries, when the asker is a shell tool. */
+  command?: string
+  /** The resolved target paths a filesystem escalation retries, when the asker is a file tool. */
+  paths?: readonly string[]
+}>
 
 declare module '@deepseek-ai/cordis' {
   interface Events {

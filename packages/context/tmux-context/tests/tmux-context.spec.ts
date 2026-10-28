@@ -68,6 +68,7 @@ class FakeBash extends ShellExecutor {
       timeoutMs: request.timeoutMs ?? 60_000,
       onExpiry: request.onExpiry ?? 'kill',
       stdoutMaxBytes: request.stdoutMaxBytes ?? 64_000,
+      liveStdin: request.liveStdin === true,
       signal: request.signal,
       sandboxPolicy: request.sandboxPolicy,
     }

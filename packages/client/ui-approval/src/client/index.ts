@@ -51,6 +51,7 @@ async function answerApproval(
       : { callId: request.callId }),
     ...(request.reason === undefined ? {} : { reason: request.reason }),
     ...(request.displayReason === undefined ? {} : { displayReason: request.displayReason }),
+    ...(request.subject === undefined ? {} : { subject: request.subject }),
     ...(request.signal === undefined ? {} : { signal: request.signal }),
   })
   const completed = Promise.withResolvers<void>()
@@ -71,6 +72,28 @@ async function answerApproval(
   }
 }
 /* jscpd:ignore-end */
+
+/**
+ * The remember callback for pending asks, when the approval-memory Remote
+ * namespace is mounted. Records the single offered choice for the ask and
+ * reports whether the host accepted it.
+ * @param ctx - Client root context.
+ * @returns the injected callback, or nothing when the namespace is absent.
+ */
+function rememberFor(ctx: ClientContext): { remember(pending: PendingApproval): Promise<boolean> } | Record<string, never> {
+  const memory = (ctx.remote as { approvalMemory?: { choices(callId: string): Promise<{ ok: true; value: { id: string }[] } | { ok: false; error: { message: string } }> ; remember(callId: string, choiceId: string): Promise<{ ok: true } | { ok: false; error: { message: string } }> } }).approvalMemory
+  if (memory === undefined) return {}
+  return {
+    async remember(pending: PendingApproval): Promise<boolean> {
+      if (pending.callId === undefined || pending.subject === undefined) return false
+      const choices = await memory.choices(String(pending.callId))
+      const choice = choices.ok ? choices.value[0] : undefined
+      if (choice === undefined) return false
+      const recorded = await memory.remember(String(pending.callId), choice.id)
+      return recorded.ok
+    },
+  }
+}
 
 /**
  * Install approval copy and the scoped waterfall consumer.
@@ -102,6 +125,7 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     inject: () => ({
       resolveReason: (reason: NonNullable<PendingApproval['displayReason']>) => ctx.locale.resolveText(reason),
+      ...rememberFor(ctx),
     }),
   }, ApprovalPanel))
   ctx.remote.$on('approval/request', function (request, next) {

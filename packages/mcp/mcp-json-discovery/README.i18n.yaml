@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/mcp/mcp-json-discovery/README.md
+/:
+  en: 95bbdf0f5c9ef82e
+  zh: dd460c8da66325b1
+/deepseek-ai-dsh-mcp-json-discovery:
+  en: c33ae43bae2f457a
+  zh: 807ce570b885deb7
+/deepseek-ai-dsh-mcp-json-discovery/summary:
+  en: a749bc9701635771
+  zh: 44bbd7734bf39b7d
+/deepseek-ai-dsh-mcp-json-discovery/table-of-contents:
+  en: b563e4ec4727d0de
+  zh: 0b283b30acc898ed
+/deepseek-ai-dsh-mcp-json-discovery/use-this-package:
+  en: b83297aa773b9d08
+  zh: e57082cef53bc9b1
+/deepseek-ai-dsh-mcp-json-discovery/use-this-package/mount-and-configure:
+  en: 331e5d0ee2ea8d2c
+  zh: a2e18e7663a27bb0
+/deepseek-ai-dsh-mcp-json-discovery/use-this-package/document-format:
+  en: 8b7ff5e8c80fb111
+  zh: 853064e8df8be0ba
+/deepseek-ai-dsh-mcp-json-discovery/use-this-package/precedence-and-collisions:
+  en: 97e4493e1f7d2d7a
+  zh: a9c058d39f5b7ac7
+/deepseek-ai-dsh-mcp-json-discovery/understand-the-implementation:
+  en: e5cb6ad3f2bd48a1
+  zh: 8c9074d03256b13a
+/deepseek-ai-dsh-mcp-json-discovery/further-exploration:
+  en: 4428dbf7d007b2f1
+  zh: 6c0d96f31891b9b1
+/deepseek-ai-dsh-mcp-json-discovery/model-experience:
+  en: 67cf501df2cd13ac
+  zh: f4e7239b4d34fdc1
+/deepseek-ai-dsh-mcp-json-discovery/model-experience/kv-cache-effect:
+  en: 44305f529c5799cc
+  zh: 1f25032a90b7f2e5
+/deepseek-ai-dsh-mcp-json-discovery/known-limitations-and-deferred-work:
+  en: 2546f8743526af92
+  zh: 55f5317d08240b3d
+/deepseek-ai-dsh-mcp-json-discovery/known-limitations-and-deferred-work/dev-note:
+  en: c58dbcf3967fd500
+  zh: 4bc52fee25434c20

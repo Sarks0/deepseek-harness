@@ -9,6 +9,8 @@
  * @module @deepseek-ai/dsh-skill-filesystem
  */
 
+import picomatch from 'picomatch'
+
 import { access, lstat, readdir, readFile, realpath, stat } from 'node:fs/promises'
 import { unwatchFile, watchFile, type Stats } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
@@ -56,6 +58,12 @@ export interface Config {
   agentsHome?: string
   /** Additional skill roots scanned after project roots and before user roots. */
   customSkillDirs?: string[]
+  /**
+   * Glob-pattern allowlist over discovered skill names; a skill is kept only
+   * when its name matches at least one pattern. Absent or empty keeps every
+   * discovered skill.
+   */
+  includeSkills?: string[]
   /** Whether host-local skill roots are watched for catalog changes. */
   watch?: boolean
   /** Whether Chokidar uses polling instead of native filesystem events. */
@@ -78,6 +86,7 @@ export const Config: Schema<Config> = z.object({
   dshHome: z.string(),
   agentsHome: z.string(),
   customSkillDirs: z.array(z.string()).default([]),
+  includeSkills: z.array(z.string()).default([]),
   watch: z.boolean().default(true),
   watchUsePolling: z.boolean().default(false),
   watchStabilityThresholdMs: z.number().default(DEFAULT_WATCH_STABILITY_THRESHOLD_MS),
@@ -152,6 +161,8 @@ export class FileSystemSkillProvider implements SkillProvider {
   private readonly dshHome: string
   private readonly agentsHome: string
   private readonly customSkillDirs: string[]
+  private readonly includeSkills: readonly string[]
+  private readonly includeMatcher: ((name: string) => boolean) | undefined
   private readonly watchManager: SkillWatchManager
   private readonly bundledSkillDir: string | undefined
   private disposal: Promise<void> | undefined
@@ -166,6 +177,9 @@ export class FileSystemSkillProvider implements SkillProvider {
     this.dshHome = resolveDshHome(config.dshHome)
     this.agentsHome = resolveAgentsHome(config.agentsHome)
     this.customSkillDirs = (config.customSkillDirs ?? []).map(root => resolve(root))
+    // An empty pattern list is "no filtering", not "match nothing".
+    this.includeSkills = config.includeSkills ?? []
+    this.includeMatcher = this.includeSkills.length > 0 ? picomatch([...this.includeSkills]) : undefined
     this.watchManager = new SkillWatchManager(ctx, control.invalidate, resolveWatchConfig(config))
     control.signal.addEventListener('abort', () => { void this.dispose() }, { once: true })
     // The environment bundled root is a default root: an isolated provider
@@ -194,6 +208,7 @@ export class FileSystemSkillProvider implements SkillProvider {
     const candidates: SkillCandidate[] = []
     for (const root of roots) {
       for (const skill of await discoverRoot(root, this.ctx, this.name)) {
+        if (this.includeMatcher !== undefined && !this.includeMatcher(skill.name)) continue
         candidates.push(skill)
       }
     }

@@ -81,6 +81,11 @@ interface ApprovalRequest extends ApprovalRequestEvent {
 }
 ```
 
+<a id="remembered-grants"></a>
+## 被记住的授权
+
+[`dsh-approval-memory`](../../packages/interaction/approval-memory/README.zh.md) 是一个可选的前置回答方，在任何人类回答方之前检查持久授权存储。命中即以 `allowed-once` 应答 —— 上文的审计对仍然会写入 —— 未命中则原样委托。只有当用户在 Web UI 中对一个携带记忆主体的询问回答 **Always allow** 时才会记录：shell 提权携带逐字命令，文件系统提权携带解析后的目标路径。范围保持保守（sha256 摘要或按段的路径前缀），拒绝记录位于 harness home 之下的范围，`never` 策略仍在任何监听器之前短路（被委托的子代理永远无法消费授权），并且 `/approvals` 可列出或撤销存储中的一切。何时应改用无人值守预设，见[实验室会话](../user/guide/lab-sessions.zh.md)。
+
 ## 分发与审计
 
 `ctx.approval.request(req)` 要求发起请求的会话处于一个尚未结束的轮次内。它追加 `approval/asked`，获取一个结果，追加对应的 `approval/decided`，然后以该结果完成。`never` 策略在服务内部、waterfall 分发之前强制执行，因此即使后来以 `prepend` 注册的应答者也无法绕过它。应答者在负责处理该请求时返回结果，否则调用 `next()` 委托；第一个应答占据唯一的决策槽位。

@@ -19,6 +19,7 @@ import type {} from '@deepseek-ai/dsh-agent-default-model'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-fs'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { launchCwd } from '@deepseek-ai/dsh-launch-environment'
 import { APPROVAL_POLICIES, setApprovalPolicy, type ApprovalPolicy } from '@deepseek-ai/dsh-user-approval'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { SessionSeq } from '@deepseek-ai/dsh-session'
@@ -384,7 +385,7 @@ async function run(ctx: Context, config: Config, io: HeadlessIo): Promise<void> 
   }
   const sessionId = brandString<SessionId>(config.sessionId ?? `session-${randomUUID()}`)
   const fs = ctx.get('fs')
-  const cwd = fs === undefined ? process.cwd() : fs.processPath(await fs.resolve('.'))
+  const cwd = fs === undefined ? launchCwd() : fs.processPath(await fs.resolve('.'))
   const agent = config.sessionId === undefined
     ? (await agents.create({
       sessionId,

@@ -117,6 +117,19 @@ export function launchEnvironmentOf(ctx: Context): LaunchEnvironmentSnapshot {
 }
 
 /**
+ * The launch directory: the caller's working directory when a package manager
+ * (`npm`, `pnpm`, `yarn`) launched this process, else the process cwd. The
+ * package managers chdir into the package root before invoking a bin and
+ * record the caller's directory in `INIT_CWD`, so every workspace/launch-root
+ * default resolves against it; a direct launch has no `INIT_CWD` and its cwd
+ * already is the caller's.
+ * @returns the absolute launch directory path.
+ */
+export function launchCwd(): string {
+  return process.env.INIT_CWD ?? process.cwd()
+}
+
+/**
  * Detect SSH from non-empty SSH_CONNECTION or SSH_TTY inherited at launch.
  * Project and user `.env` values never establish an SSH session.
  * @param environment - the launcher's environment snapshot.

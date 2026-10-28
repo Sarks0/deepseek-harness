@@ -25,7 +25,29 @@ import {
 export const name = 'tool-skill'
 export const inject = ['agents', 'tools', 'skills', 'workingDirectory']
 
-const DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH = 500
+const DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH = 1000
+const DEFAULT_CATALOG_WHEN_TO_USE_MAX_LENGTH = 500
+const DEFAULT_TRIGGER_INJECTION_MAX = 3
+/**
+ * A single word is a distinctive trigger only while it appears in at most
+ * this many skills' trigger texts; anything more common is catalog noise.
+ */
+const TRIGGER_MAX_SKILLS_PER_TOKEN = 2
+/**
+ * Conversation filler excluded from single-word matching; quoted phrases
+ * ignore this list because quoting is an explicit trigger declaration.
+ */
+const TRIGGER_STOPWORDS: Readonly<Record<string, true>> = {
+  about: true, above: true, against: true, another: true, before: true, being: true,
+  below: true, between: true, both: true, because: true, could: true, during: true,
+  each: true, every: true, help: true, here: true, into: true, just: true, many: true,
+  more: true, most: true, much: true, need: true, onto: true, other: true, over: true,
+  please: true, same: true, should: true, some: true, such: true, task: true, than: true,
+  that: true, them: true, then: true, there: true, these: true, they: true, this: true,
+  those: true, through: true, under: true, very: true, want: true, what: true, when: true,
+  where: true, which: true, while: true, will: true, with: true, work: true, would: true,
+  your: true,
+}
 /**
  * Durable provider and item records for one published session skill catalog. The catalog is a
  * `catalog`-form context, so it records the entries it published beside the
@@ -38,12 +60,30 @@ export interface SkillCatalogSource {
   /** Marks a replacement catalog rather than this session's first publication. */
   readonly update?: true
   /** Exactly the entries this message published, in catalog order. */
-  readonly entries: readonly { readonly name: string; readonly description: string }[]
+  readonly entries: readonly {
+    readonly name: string
+    readonly description: string
+    readonly whenToUse?: string
+  }[]
+}
+
+/** Durable record of one deterministic prompt→skill trigger reminder. */
+export interface SkillTriggerSource {
+  readonly kind: 'skill-trigger'
+  readonly form: 'reminder'
+  /** Names of the matched skills, in catalog order. */
+  readonly names: readonly string[]
+  /**
+   * Digest of the triggering text and the matched names; an equal visible
+   * digest is never re-injected.
+   */
+  readonly digest: string
 }
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
     'skill-catalog': SkillCatalogSource
+    'skill-trigger': SkillTriggerSource
   }
 }
 
@@ -51,10 +91,14 @@ declare module '@deepseek-ai/dsh-llm' {
 function catalogSourceEntries(
   skills: SkillSummary[],
   descriptionMaxLength: number,
+  whenToUseMaxLength: number,
 ): SkillCatalogSource['entries'] {
   return skills.map(skill => ({
     name: skill.name,
     description: catalogDescription(skill.description, descriptionMaxLength),
+    ...skill.whenToUse !== undefined ? {
+      whenToUse: catalogDescription(skill.whenToUse, whenToUseMaxLength),
+    } : {},
   }))
 }
 
@@ -62,11 +106,20 @@ function catalogSourceEntries(
 export interface Config {
   /** Maximum normalized description length rendered in the session catalog; minimum 3. */
   catalogDescriptionMaxLength?: number
+  /** Maximum normalized when-to-use length rendered in the session catalog; minimum 3. */
+  catalogWhenToUseMaxLength?: number
+  /** Match natural-language claims against skill trigger texts and name the matches in a reminder. */
+  triggerInjection?: boolean
+  /** How many matched skills one trigger reminder may name; minimum 1. */
+  triggerInjectionMax?: number
 }
 
 /** Validate and default the model-facing skill catalog configuration. */
 export const Config: z<Config> = z.object({
   catalogDescriptionMaxLength: z.number().default(DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH),
+  catalogWhenToUseMaxLength: z.number().default(DEFAULT_CATALOG_WHEN_TO_USE_MAX_LENGTH),
+  triggerInjection: z.boolean().default(true),
+  triggerInjectionMax: z.number().default(DEFAULT_TRIGGER_INJECTION_MAX),
 })
 
 /**
@@ -78,6 +131,11 @@ export const Config: z<Config> = z.object({
 export function apply(ctx: Context, config: Config = {}): void {
   const catalogDescriptionMaxLength = config.catalogDescriptionMaxLength ?? DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH
   assertPositiveInteger('catalogDescriptionMaxLength', catalogDescriptionMaxLength, 3)
+  const catalogWhenToUseMaxLength = config.catalogWhenToUseMaxLength ?? DEFAULT_CATALOG_WHEN_TO_USE_MAX_LENGTH
+  assertPositiveInteger('catalogWhenToUseMaxLength', catalogWhenToUseMaxLength, 3)
+  const triggerInjection = config.triggerInjection ?? true
+  const triggerInjectionMax = config.triggerInjectionMax ?? DEFAULT_TRIGGER_INJECTION_MAX
+  assertPositiveInteger('triggerInjectionMax', triggerInjectionMax, 1)
 
   const skillTool = defineTool({
     name: 'skill',
@@ -205,6 +263,51 @@ export function apply(ctx: Context, config: Config = {}): void {
     return { ...decision, messages: [...decision.messages, ...injections] }
   })
 
+  // Deterministic prompt→skill trigger injection: a natural-language claim
+  // that quotes or distinctly echoes a skill's trigger text surfaces that
+  // skill by name, without waiting for the model to volunteer a `skill`
+  // call. The reminder names matches only; loading bodies stays the model's
+  // `skill` call. Registered between the gesture and catalog listeners so
+  // its message lands after the catalog and before gesture bodies —
+  // background first, the material the model must act on last.
+  if (triggerInjection) {
+    ctx.on('agent/pre-step', async (
+      { agent, messages, signal },
+      next,
+    ): Promise<PreStepDecision> => {
+      const decision = await next()
+      if (decision.kind === 'reject') return decision
+      const texts = userTextBlocks(messages)
+      if (texts.length === 0) return decision
+      signal.throwIfAborted()
+      // The reminder is guidance about this plugin's own tool: a scope that
+      // hides or shadows `skill` must not receive it either.
+      if (ctx.tools.get(skillTool.name, agent) !== skillTool) return decision
+      const snapshot = await ctx.skills.snapshot({
+        cwd: await ctx.workingDirectory.ensure(agent, signal),
+        signal,
+        scope: agent,
+      })
+      signal.throwIfAborted()
+      if (!snapshot.complete) return decision
+      const candidates = snapshot.skills.filter(isModelInvocable)
+      if (candidates.length === 0) return decision
+      // A gesture already injected this step's skill bodies; naming those
+      // skills again would repeat what the model is about to read.
+      const gestured = invokedSkillNames(messages)
+      const message = texts.join('\n')
+      const matched = matchTriggeredSkills(candidates, message)
+        .filter(skill => !gestured.includes(skill.name))
+        .slice(0, triggerInjectionMax)
+      if (matched.length === 0) return decision
+      const reminder = renderTriggerReminder(matched.map(skill => skill.name), message)
+      // An identical reminder is already visible: the claimed text was
+      // matched before (a retry or re-claim), so repeating it adds noise.
+      if (triggerHistory(agent) === readTriggerDigest(reminder.source)) return decision
+      return { ...decision, messages: [...decision.messages, reminder] }
+    })
+  }
+
   // Register after the tool so reverse teardown removes guidance first. Exact definition
   // identity prevents a scoped shadow merely named `skill` from inheriting this catalog.
   //
@@ -226,7 +329,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     signal.throwIfAborted()
     if (!snapshot.complete) return decision
     const skills = snapshot.skills.filter(isModelInvocable)
-    const entries = catalogSourceEntries(skills, catalogDescriptionMaxLength)
+    const entries = catalogSourceEntries(skills, catalogDescriptionMaxLength, catalogWhenToUseMaxLength)
     const digest = digestCatalogEntries(entries)
     const history = catalogHistory(agent)
     const existing = catalogMessage(decision.messages)
@@ -319,7 +422,12 @@ function renderCatalogUpdate(entries: SkillCatalogSource['entries']): UserMessag
  * no escapable character.
  */
 function renderCatalogEntries(entries: SkillCatalogSource['entries']): string[] {
-  return entries.map(entry => `- \`${entry.name}\`: ${escapeText(entry.description)}`)
+  return entries.map((entry) => {
+    const guidance = entry.whenToUse === undefined
+      ? ''
+      : ` — use when: ${escapeText(entry.whenToUse)}`
+    return `- \`${entry.name}\`: ${escapeText(entry.description)}${guidance}`
+  })
 }
 
 /**
@@ -330,7 +438,11 @@ function renderCatalogEntries(entries: SkillCatalogSource['entries']): string[] 
 function digestCatalogEntries(entries: SkillCatalogSource['entries']): string {
   // JSON per entry rather than a separator character: every separator is itself
   // a legal description character, so only quoting makes the boundary exact.
-  const canonical = entries.map(entry => JSON.stringify([entry.name, entry.description])).join('\n')
+  // `whenToUse` rides in the same tuple, so a changed routing hint republishes
+  // the catalog exactly like a changed description.
+  const canonical = entries
+    .map(entry => JSON.stringify([entry.name, entry.description, entry.whenToUse ?? null]))
+    .join('\n')
   return createHash('sha256')
     .update(canonical)
     .digest('hex')
@@ -350,12 +462,19 @@ function digestCatalogEntries(entries: SkillCatalogSource['entries']): string {
 function readCatalogEntries(source: unknown): SkillCatalogSource['entries'] | undefined {
   const entries = (source as { entries?: unknown }).entries
   if (!Array.isArray(entries)) return undefined
-  const readable: { name: string; description: string }[] = []
+  const readable: { name: string; description: string; whenToUse?: string }[] = []
   for (const entry of entries as readonly unknown[]) {
     if (typeof entry !== 'object' || entry === null) return undefined
-    const { name, description } = entry as { name?: unknown; description?: unknown }
+    const { name, description, whenToUse } = entry as {
+      name?: unknown
+      description?: unknown
+      whenToUse?: unknown
+    }
     if (typeof name !== 'string' || name === '' || typeof description !== 'string') return undefined
-    readable.push({ name, description })
+    // A record written before routing hints joined the catalog carries no
+    // `whenToUse`; anything else here must be a string.
+    if (whenToUse !== undefined && typeof whenToUse !== 'string') return undefined
+    readable.push(whenToUse === undefined ? { name, description } : { name, description, whenToUse })
   }
   return readable
 }
@@ -430,4 +549,136 @@ function invokedSkillNames(messages: readonly UserMessage[]): string[] {
     }
   }
   return names
+}
+
+/**
+ * Text blocks of direct user input from the step's claimed batch — the only
+ * text a trigger match may read.
+ * @param messages - the step's claimed batch.
+ * @returns every user-authored text block, in claim order.
+ */
+function userTextBlocks(messages: readonly UserMessage[]): string[] {
+  const texts: string[] = []
+  for (const message of messages) {
+    if ((message.source as { kind?: unknown }).kind !== 'user') continue
+    for (const block of message.content) {
+      if (block.type === 'text') texts.push(block.text)
+    }
+  }
+  return texts
+}
+
+/** Quoted phrases of at least three characters: explicit trigger declarations. */
+const TRIGGER_PHRASE = /"([^"\n]{3,})"|'([^'\n]{3,})'/g
+
+/** Word tokens of at least four characters: single-word trigger candidates. */
+const TRIGGER_TOKEN = /[a-z0-9]{4,}/g
+
+/** Trigger phrases quoted in one skill's description or when-to-use text. */
+function triggerPhrases(text: string): string[] {
+  const phrases: string[] = []
+  for (const match of text.matchAll(TRIGGER_PHRASE)) {
+    const phrase = match[1] ?? match[2]
+    if (phrase !== undefined) phrases.push(phrase.trim().toLowerCase())
+  }
+  return phrases
+}
+
+/**
+ * Skills whose trigger text the message matches, in catalog order.
+ *
+ * A skill matches when the message contains one of its quoted trigger
+ * phrases (case-insensitive), or one of its word tokens of at least four
+ * characters that is neither conversation filler (the stopword table) nor
+ * shared by more than {@link TRIGGER_MAX_SKILLS_PER_TOKEN} other candidates
+ * — a word common across the catalog is noise, a rare word is a trigger.
+ * @param skills - model-invocable candidates from one complete snapshot.
+ * @param message - the step's claimed user text.
+ * @returns the matched skills, capped by the caller.
+ */
+function matchTriggeredSkills(skills: readonly SkillSummary[], message: string): SkillSummary[] {
+  const normalizedMessage = message.toLowerCase()
+  const perSkillTokens = skills.map(skill => {
+    const text = `${skill.description}\n${skill.whenToUse ?? ''}`.toLowerCase()
+    return new Set(text.match(TRIGGER_TOKEN) ?? [])
+  })
+  const tokenSkillCounts = new Map<string, number>()
+  for (const tokens of perSkillTokens) {
+    for (const token of tokens) {
+      tokenSkillCounts.set(token, (tokenSkillCounts.get(token) ?? 0) + 1)
+    }
+  }
+  return skills.filter((skill, index) => {
+    const text = `${skill.description}\n${skill.whenToUse ?? ''}`
+    for (const phrase of triggerPhrases(text)) {
+      if (normalizedMessage.includes(phrase)) return true
+    }
+    const tokens = perSkillTokens[index]
+    if (tokens === undefined) return false
+    for (const token of tokens) {
+      if (TRIGGER_STOPWORDS[token] === true) continue
+      if ((tokenSkillCounts.get(token) ?? 0) > TRIGGER_MAX_SKILLS_PER_TOKEN) continue
+      if (new RegExp(`\\b${token}\\b`).test(normalizedMessage)) return true
+    }
+    return false
+  })
+}
+
+/**
+ * The durable trigger reminder: matched names and the instruction to load
+ * them, never the bodies.
+ * @param names - matched skill names in catalog order.
+ * @param message - the claimed user text that matched.
+ * @returns the reminder as a durable user-role message.
+ */
+function renderTriggerReminder(names: readonly string[], message: string): UserMessage {
+  const digest = createHash('sha256')
+    .update(JSON.stringify([names, message]))
+    .digest('hex')
+  return createUserMessage({
+    content: [{
+      type: 'text',
+      text: [
+        '<system-reminder>',
+        `The user's request matches one or more available skills: ${names.map(name => `\`${name}\``).join(', ')}.`,
+        'Call the `skill` tool with the exact name for each match before improvising; catalog summaries are not the full instructions.',
+        '</system-reminder>',
+      ].join('\n'),
+    }],
+    source: { kind: 'skill-trigger', form: 'reminder', names: [...names], digest },
+  })
+}
+
+/**
+ * Digest of one trigger-reminder source, when the record is readable.
+ * @param source - a durable user-message source of any kind.
+ * @returns the recorded digest, or undefined.
+ */
+function readTriggerDigest(source: unknown): string | undefined {
+  const digest = (source as { digest?: unknown }).digest
+  return typeof digest === 'string' ? digest : undefined
+}
+
+/**
+ * Digest of the most recent visible trigger reminder, if one exists.
+ *
+ * Seed validation guarantees only a non-empty `kind`, so an unreadable
+ * record counts as "no reminder" rather than failing the step.
+ * @param agent - the claiming agent.
+ * @returns the visible reminder's digest, or undefined.
+ */
+function triggerHistory(agent: Agent): string | undefined {
+  const visible = new Set(agent.session.surface.nodes)
+  for (let index = agent.session.seq - 1; index >= 0; index -= 1) {
+    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+    const event = agent.session.eventAt(SessionSeq(index))
+    if (event === undefined) {
+      throw new Error(`skill trigger cannot read seq ${String(index)} below the current Session length`)
+    }
+    if (event.type !== 'user/message' || event.data.source.kind !== 'skill-trigger') continue
+    const digest = readTriggerDigest(event.data.source)
+    if (digest === undefined) continue
+    if (visible.has(event.seq)) return digest
+  }
+  return undefined
 }

@@ -84,6 +84,13 @@ export interface ShellExecRequest {
    */
   stdin?: string | undefined
   /**
+   * Spawn the command with a live stdin pipe instead of a closed one, so
+   * {@link ShellProcess.writeInput} can answer its prompts later. Mutually
+   * exclusive with {@link stdin} (batch bytes); a request naming both fails
+   * resolution. Foreground one-shot calls leave it unset by design.
+   */
+  liveStdin?: boolean | undefined
+  /**
    * Ordinary environment entries for the command, merged after the credential
    * scrub. Managed facts belong in {@link dshEnv}, which merges after this
    * map, so an entry here can never displace one. Set by in-process plugins
@@ -123,6 +130,8 @@ export interface ShellExecSpec {
   signal?: AbortSignal | undefined
   /** Bytes to write to stdin before closing it; absent means no stdin. */
   stdin?: string | undefined
+  /** Resolved live-stdin request: the process exposes {@link ShellProcess.writeInput}. */
+  liveStdin: boolean
   /**
    * Ordinary environment entries carried through from
    * {@link ShellExecRequest.env}; {@link dshEnv} still merges after them.
@@ -212,6 +221,15 @@ export interface ShellProcess {
    * own offsets without stealing bytes from `readOutput`.
    */
   observed: ShellObservedStreams
+  /**
+   * Write UTF-8 text to the process's live stdin, present iff the executor
+   * spawned with a live stdin pipe (`liveStdin`). Throws when the process or
+   * its stdin already ended; `close: true` ends the stream after this write.
+   * @param text - the bytes to write, exactly as given.
+   * @param options - `close` ends the stream after this write.
+   * @returns the number of UTF-8 bytes written.
+   */
+  writeInput?(text: string, options?: { close?: boolean }): number
   /**
    * Terminate the provider-managed range. Returns false when it had already finished
    * (no-op); idempotent.

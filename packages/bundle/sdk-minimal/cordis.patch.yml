@@ -71,7 +71,7 @@
       name: '@deepseek-ai/dsh-sandbox-policy'
       config:
         mode: danger-full-access
-        workspaceRoot: !!js process.cwd()
+        workspaceRoot: !!js launchCwd()
 
     - id: subprocess
       name: '@deepseek-ai/dsh-subprocess-local'

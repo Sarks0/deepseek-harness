@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "承認メモリ",
+    "description": "Always allow の判断を記憶し、同一の承認を再び促さないようにします。"
+  }
+}
